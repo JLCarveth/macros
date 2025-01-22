@@ -3,3 +3,4 @@ models/*
 eng.traineddata
 .env*
 localhost*
+.vscode/*

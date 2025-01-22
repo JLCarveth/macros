@@ -1,0 +1,15 @@
+meta {
+  name: Upload Image -LLM-
+  type: http
+  seq: 3
+}
+
+post {
+  url: https://localhost:3000/analyze-nutrition
+  body: multipartForm
+  auth: none
+}
+
+body:multipart-form {
+  image: @file(C:\Users\jlcar\Documents\nutrition-crop.webp)
+}

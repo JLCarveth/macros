@@ -1,0 +1,15 @@
+meta {
+  name: Check Health
+  type: http
+  seq: 4
+}
+
+get {
+  url: https://localhost:3000/version
+  body: multipartForm
+  auth: none
+}
+
+body:multipart-form {
+  image: @file(C:\Users\jlcar\Documents\nutrition-crop.webp)
+}

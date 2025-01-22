@@ -1,0 +1,15 @@
+meta {
+  name: Upload Image
+  type: http
+  seq: 2
+}
+
+post {
+  url: http://localhost:3000/upload
+  body: multipartForm
+  auth: none
+}
+
+body:multipart-form {
+  image: @file(/Users/jlcarveth/Downloads/PXL_20240815_114754473.jpg)
+}

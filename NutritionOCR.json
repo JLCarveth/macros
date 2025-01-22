@@ -1,0 +1,82 @@
+{
+  "name": "NutritionOCR",
+  "version": "1",
+  "items": [
+    {
+      "type": "http",
+      "name": "Upload Image (LLM)",
+      "seq": 3,
+      "request": {
+        "url": "https://localhost:3000/analyze-nutrition",
+        "method": "POST",
+        "headers": [],
+        "params": [],
+        "body": {
+          "mode": "multipartForm",
+          "formUrlEncoded": [],
+          "multipartForm": [
+            {
+              "type": "file",
+              "name": "image",
+              "value": [
+                "/Users/jlcarveth/Pictures/nutrition-crop.webp"
+              ],
+              "enabled": true
+            }
+          ]
+        },
+        "script": {},
+        "vars": {},
+        "assertions": [],
+        "tests": "",
+        "docs": "",
+        "auth": {
+          "mode": "none"
+        }
+      }
+    },
+    {
+      "type": "http",
+      "name": "Upload Image",
+      "seq": 2,
+      "request": {
+        "url": "http://localhost:3000/upload",
+        "method": "POST",
+        "headers": [],
+        "params": [],
+        "body": {
+          "mode": "multipartForm",
+          "formUrlEncoded": [],
+          "multipartForm": [
+            {
+              "type": "file",
+              "name": "image",
+              "value": [
+                "/Users/jlcarveth/Downloads/PXL_20240815_114754473.jpg"
+              ],
+              "enabled": true
+            }
+          ]
+        },
+        "script": {},
+        "vars": {},
+        "assertions": [],
+        "tests": "",
+        "docs": "",
+        "auth": {
+          "mode": "none"
+        }
+      }
+    }
+  ],
+  "environments": [],
+  "brunoConfig": {
+    "version": "1",
+    "name": "NutritionOCR",
+    "type": "collection",
+    "ignore": [
+      "node_modules",
+      ".git"
+    ]
+  }
+}
