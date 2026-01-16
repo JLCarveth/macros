@@ -1,0 +1,26 @@
+{
+  "workspace": [
+    "./packages/api",
+    "./packages/web",
+    "./packages/shared"
+  ],
+  "tasks": {
+    "dev:api": "cd packages/api && deno task dev",
+    "dev:web": "cd packages/web && deno task dev",
+    "dev": "deno task dev:api & deno task dev:web",
+    "migrate": "deno run --allow-net --allow-read --allow-env scripts/migrate.ts"
+  },
+  "nodeModulesDir": "auto",
+  "imports": {
+    "preact": "https://esm.sh/preact@10.22.0",
+    "preact/": "https://esm.sh/preact@10.22.0/",
+    "preact-render-to-string": "https://esm.sh/*preact-render-to-string@6.2.1",
+    "tailwindcss": "npm:tailwindcss@3.4.1",
+    "tailwindcss/": "npm:tailwindcss@3.4.1/",
+    "tailwindcss/plugin": "npm:tailwindcss@3.4.1/plugin.js"
+  },
+  "compilerOptions": {
+    "strict": true,
+    "lib": ["deno.window"]
+  }
+}

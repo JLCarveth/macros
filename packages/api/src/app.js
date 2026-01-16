@@ -6,8 +6,8 @@ import {
   LlamaModel,
 } from "node-llama-cpp";
 import sharp from "sharp";
-import path from "path";
-import { fileURLToPath } from "url";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import multer from "multer";
 import Tesseract from "tesseract.js";
 import fs from "node:fs";

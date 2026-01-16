@@ -1,0 +1,22 @@
+{
+  "name": "@nutrition-llama/api",
+  "version": "0.1.1",
+  "exports": "./src/app.js",
+  "imports": {
+    "express": "npm:express@^4.19.2",
+    "multer": "npm:multer@^1.4.5-lts.1",
+    "node-llama-cpp": "npm:node-llama-cpp@^2.8.15",
+    "sharp": "npm:sharp@^0.33.4",
+    "tesseract.js": "npm:tesseract.js@^5.1.0",
+    "@nutrition-llama/shared": "../shared/mod.ts"
+  },
+  "tasks": {
+    "dev": "deno run --allow-net --allow-read --allow-write --allow-env --allow-ffi src/app.js",
+    "start": "deno run --allow-net --allow-read --allow-write --allow-env --allow-ffi src/app.js"
+  },
+  "compilerOptions": {
+    "allowJs": true,
+    "lib": ["deno.window"],
+    "strict": false
+  }
+}

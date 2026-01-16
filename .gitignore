@@ -1,6 +1,39 @@
-node_modules/*
-models/*
+# Dependencies
+node_modules/
+.deno/
+
+# Build outputs
+_fresh/
+dist/
+
+# Models (large files)
+packages/api/models/rocket-3b.Q2_K.gguf
+packages/api/models/tessdata/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# SSL certificates
+localhost*.pem
+*.pem
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Tesseract training data
 eng.traineddata
-.env*
-localhost*
-.vscode/*
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage/
