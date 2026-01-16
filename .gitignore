@@ -7,8 +7,7 @@ _fresh/
 dist/
 
 # Models (large files)
-packages/api/models/rocket-3b.Q2_K.gguf
-packages/api/models/tessdata/
+packages/api/models/
 
 # Environment files
 .env
