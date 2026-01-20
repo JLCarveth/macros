@@ -1,4 +1,18 @@
 import { Head } from "$fresh/runtime.ts";
+import { Handlers, PageProps } from "$fresh/server.ts";
+
+export const handler: Handlers = {
+  GET(req, ctx) {
+    // If user is logged in, redirect to dashboard
+    if (ctx.state?.user) {
+      return new Response(null, {
+        status: 302,
+        headers: { Location: "/dashboard" },
+      });
+    }
+    return ctx.render();
+  },
+};
 
 export default function Home() {
   return (
