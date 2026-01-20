@@ -3003,10 +3003,7 @@
         "packageJson": {
           "dependencies": [
             "npm:express@^4.19.2",
-            "npm:multer@^1.4.5-lts.1",
-            "npm:node-llama-cpp@^2.8.15",
-            "npm:sharp@~0.33.4",
-            "npm:tesseract.js@^5.1.0"
+            "npm:multer@^1.4.5-lts.1"
           ]
         }
       },

@@ -1,197 +1,125 @@
 import express from "express";
-import {
-  LlamaChatSession,
-  LlamaContext,
-  LlamaJsonSchemaGrammar,
-  LlamaModel,
-} from "node-llama-cpp";
-import sharp from "sharp";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import multer from "multer";
-import Tesseract from "tesseract.js";
 
 const app = express();
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-async function initializeServer() {
-  try {
-    const model = new LlamaModel({
-      modelPath: path.join(__dirname, "..", "models", "rocket-3b.Q2_K.gguf"),
-      contextSize: 1024,
-      batchSize: 2048,
-    });
+// Configuration from environment
+const LLM_API_URL = process.env.LLM_API_URL || "http://localhost:1234/v1";
+const LLM_API_KEY = process.env.LLM_API_KEY || "lm-studio";
+const LLM_MODEL = process.env.LLM_MODEL || "gpt-4o-mini";
 
-    const context = new LlamaContext({ model });
-    const grammar = new LlamaJsonSchemaGrammar(nutritionSchema);
+const SYSTEM_PROMPT = `You are a nutrition label analyzer. Extract nutrition facts from the provided image and return ONLY valid JSON matching this schema:
 
-    // Set up multer for file uploads
-    const upload = multer({ storage: multer.memoryStorage() });
-
-    // Create Tesseract worker
-    const worker = await Tesseract.createWorker("eng", 1, {
-      langPath: path.join(__dirname, "..", "models", "tessdata")
-    });
-
-    app.get("/version", (req, res) => {
-      return res.json({ version: process.env["npm_package_version"] });
-    });
-
-    app.post("/analyze-nutrition", upload.single("image"), async (req, res) => {
-      try {
-        if (!req.file) {
-          return res.status(400).json({ error: "No image file uploaded" });
-        }
-
-        const logTimings = process.env.LOG_TIMINGS === "true";
-        if (logTimings) console.time("Total Request Time");
-        if (logTimings) console.time("Image Processing Time");
-
-        const image = await sharp(req.file.buffer)
-          .resize(800)
-          .toBuffer();
-
-        if (!image) {
-          console.error("No image...");
-          return res.status(500).json({ error: "Image processing failed" });
-        }
-
-        if (logTimings) console.timeEnd("Image Processing Time");
-        if (logTimings) console.time("OCR Time");
-
-        const { data: { text } } = await worker.recognize(image, {
-          tessedit_pageseg_mode: "6",
-          tessedit_ocr_engine_mode: "1",
-        });
-        console.log(text);
-
-        if (logTimings) console.timeEnd("OCR Time");
-        if (logTimings) console.time("Text Truncation Time");
-
-        const maxTextLength = 1000;
-        const truncatedText = text.slice(0, maxTextLength);
-
-        if (logTimings) console.timeEnd("Text Truncation Time");
-        if (logTimings) console.time("Model Inference Time");
-
-        const prompt = `Analyze the nutritional facts table in this text and provide the information in a structured format:\n${truncatedText}`;
-        const session = new LlamaChatSession({ context });
-
-        const result = await session.prompt(prompt, {
-          grammar,
-          maxTokens: context.getContextSize(),
-        });
-
-        console.log(JSON.stringify(result));
-        const parsedResult = grammar.parse(result);
-
-        if (logTimings) console.timeEnd("Model Inference Time");
-        if (logTimings) console.timeEnd("Total Request Time");
-
-        res.json(parsedResult);
-      } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: "An error occurred during analysis" });
-      }
-    });
-
-    const PORT = process.env.PORT || 3000;
-    app.listen(PORT, () => {
-      console.log(`Server listening on port ${PORT}`);
-    });
-
-    // Cleanup on shutdown
-    process.on("SIGINT", async () => {
-      if (worker) {
-        await worker.terminate();
-      }
-      process.exit(0);
-    });
-
-  } catch (error) {
-    console.error('Failed to initialize server:', error);
-    process.exit(1);
-  }
+{
+  "servingSize": { "value": number, "unit": "g" | "ml" },
+  "calories": { "value": number, "unit": "kcal" },
+  "totalFat": { "value": number, "unit": "g" },
+  "carbohydrates": { "value": number, "unit": "g" },
+  "protein": { "value": number, "unit": "g" },
+  "fiber": { "value": number, "unit": "g" },
+  "sugars": { "value": number, "unit": "g" },
+  "cholesterol": { "value": number, "unit": "mg" },
+  "sodium": { "value": number, "unit": "mg" }
 }
 
-// Don't forget to include the nutritionSchema definition here
-const nutritionSchema = {
-  type: "object",
-  properties: {
-    servingSize: {
-      type: "object",
-      properties: {
-        value: { type: "number" },
-        unit: { type: "string", enum: ["g", "ml"] },
-      },
-      required: ["value", "unit"],
+Required fields: servingSize, calories, totalFat, protein, carbohydrates.
+Optional fields: fiber, sugars, cholesterol, sodium (omit if not visible).
+Return ONLY the JSON object, no markdown or explanation.`;
+
+async function analyzeWithVisionAPI(imageBuffer, mimeType) {
+  const base64Image = imageBuffer.toString("base64");
+  const dataUrl = `data:${mimeType};base64,${base64Image}`;
+
+  const response = await fetch(`${LLM_API_URL}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${LLM_API_KEY}`,
     },
-    calories: {
-      type: "object",
-      properties: {
-        value: { type: "number" },
-        unit: { type: "string", enum: ["kcal"] },
-      },
-      required: ["value", "unit"],
-    },
-    totalFat: {
-      type: "object",
-      properties: {
-        value: { type: "number" },
-        unit: { type: "string", enum: ["g"] },
-      },
-      required: ["value", "unit"],
-    },
-    carbohydrates: {
-      type: "object",
-      properties: {
-        value: { type: "number" },
-        unit: { type: "string", enum: ["g"] },
-      },
-      required: ["value", "unit"],
-    },
-    fiber: {
-      type: "object",
-      properties: {
-        value: { type: "number" },
-        unit: { type: "string", enum: ["g"] },
-      },
-      required: ["value", "unit"],
-    },
-    sugars: {
-      type: "object",
-      properties: {
-        value: { type: "number" },
-        unit: { type: "string", enum: ["g"] },
-      },
-      required: ["value", "unit"],
-    },
-    protein: {
-      type: "object",
-      properties: {
-        value: { type: "number" },
-        unit: { type: "string", enum: ["g"] },
-      },
-      required: ["value", "unit"],
-    },
-    cholesterol: {
-      type: "object",
-      properties: {
-        value: { type: "number" },
-        unit: { type: "string", enum: ["mg"] },
-      },
-      required: ["value", "unit"],
-    },
-    sodium: {
-      type: "object",
-      properties: {
-        value: { type: "number" },
-        unit: { type: "string", enum: ["mg"] },
-      },
-      required: ["value", "unit"],
-    },
-  },
-  required: ["servingSize", "calories", "totalFat", "protein", "carbohydrates"],
-};
+    body: JSON.stringify({
+      model: LLM_MODEL,
+      messages: [
+        {
+          role: "system",
+          content: SYSTEM_PROMPT,
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "Extract the nutrition facts from this food label image.",
+            },
+            {
+              type: "image_url",
+              image_url: { url: dataUrl },
+            },
+          ],
+        },
+      ],
+      max_tokens: 1000,
+      temperature: 0.1,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`LLM API error: ${response.status} - ${error}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content;
+
+  if (!content) {
+    console.error("LLM response:", JSON.stringify(data, null, 2));
+    throw new Error("No response content from LLM");
+  }
+
+  // Parse JSON from response (handle potential markdown code blocks)
+  let jsonStr = content.trim();
+  if (jsonStr.startsWith("```")) {
+    jsonStr = jsonStr.replace(/```json?\n?/g, "").replace(/```$/g, "").trim();
+  }
+
+  return JSON.parse(jsonStr);
+}
+
+function initializeServer() {
+  const upload = multer({ storage: multer.memoryStorage() });
+
+  app.get("/version", (req, res) => {
+    return res.json({ version: process.env["npm_package_version"] });
+  });
+
+  app.post("/analyze-nutrition", upload.single("image"), async (req, res) => {
+    const requestId = Date.now().toString(36);
+    const timerLabel = `Request ${requestId}`;
+    const logTimings = process.env.LOG_TIMINGS === "true";
+
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No image file uploaded" });
+      }
+
+      if (logTimings) console.time(timerLabel);
+
+      const result = await analyzeWithVisionAPI(req.file.buffer, req.file.mimetype);
+
+      if (logTimings) console.timeEnd(timerLabel);
+
+      res.json(result);
+    } catch (error) {
+      if (logTimings) console.timeEnd(timerLabel);
+      console.error(error);
+      res.status(500).json({ error: "An error occurred during analysis" });
+    }
+  });
+
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`Server listening on port ${PORT}`);
+    console.log(`Using LLM API: ${LLM_API_URL} with model: ${LLM_MODEL}`);
+  });
+}
 
 initializeServer();

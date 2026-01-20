@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 Nutrition Llama - A full-stack nutrition tracking application with:
-- **Backend API** (`packages/api`) - Node.js/Deno nutrition analyzer using OCR and LLM
+- **Backend API** (`packages/api`) - Node.js nutrition analyzer using vision LLM via OpenAI-compatible API
 - **Frontend** (`packages/web`) - Deno Fresh 2.0 web application
 - **Shared Types** (`packages/shared`) - Common TypeScript types
 
@@ -37,8 +37,7 @@ Note: No test suite is configured yet.
 nutrition-llama/
 ├── packages/
 │   ├── api/                 # Nutrition analyzer API
-│   │   ├── src/app.js       # Express server with OCR + LLM
-│   │   └── models/          # LLM model and Tesseract data
+│   │   └── src/app.js       # Express server with vision LLM
 │   ├── web/                 # Deno Fresh frontend
 │   │   ├── routes/          # Pages and API routes
 │   │   ├── islands/         # Interactive components
@@ -52,14 +51,9 @@ nutrition-llama/
 
 Processing pipeline:
 1. **Image Upload** - Multer handles multipart form data (memory storage)
-2. **Image Processing** - Sharp resizes images to 800px width for OCR optimization
-3. **OCR** - Tesseract.js extracts text from the processed image
-4. **LLM Inference** - node-llama-cpp with a JSON grammar schema parses the OCR text into structured nutrition data
+2. **Vision LLM** - Image sent to OpenAI-compatible API (e.g., OpenAI, LM Studio, Ollama) for direct nutrition extraction
 
-Key components:
-- **LLM Model**: Uses rocket-3b GGUF model from `packages/api/models/rocket-3b.Q2_K.gguf`
-- **Tesseract Data**: Language data stored in `packages/api/models/tessdata/`
-- **Nutrition Schema**: JSON schema defines the structured output format
+The API uses any OpenAI-compatible vision model to directly analyze nutrition label images without OCR. This provides better accuracy since the model can understand table structure and spatial layout.
 
 Endpoints:
 - `GET /version` - Returns package version
@@ -73,7 +67,6 @@ Endpoints:
 
 ### Shared Package (`packages/shared`)
 - Type definitions for nutrition data, users, and food logs
-- JSON schema for LLM grammar
 
 ## Database
 
@@ -138,11 +131,17 @@ REFRESH_TOKEN_SECRET=<32-byte-secret>
 NUTRITION_API_URL=http://localhost:3000
 ```
 
-### API-specific (optional)
+### API-specific
 
+LLM API configuration (required):
+```bash
+LLM_API_URL=http://localhost:1234/v1   # OpenAI-compatible API endpoint
+LLM_API_KEY=lm-studio                   # API key (use "lm-studio" for LM Studio)
+LLM_MODEL=gpt-4o-mini                   # Model name (must support vision)
+```
+
+Other options:
 - `PORT` - Server port (default: 3000)
-- `NODE_ENV` - Set to "development" to enable HTTPS
-- `SSL_KEY_PATH` / `SSL_CERT_PATH` - Required for HTTPS in development mode
 - `LOG_TIMINGS` - Set to "true" to enable performance logging
 
 ## Key User Flows
@@ -153,6 +152,6 @@ NUTRITION_API_URL=http://localhost:3000
 
 ## Notes
 
-- Models directory contains large files (~1GB) - not committed to git
 - Fresh generates `fresh.gen.ts` - this file should be committed
-- Both Node.js and Deno are supported for the API package
+- API requires Node.js 18+ for native fetch support
+- For local development, use LM Studio with a vision model (e.g., LLaVA, Qwen-VL)

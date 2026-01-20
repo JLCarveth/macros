@@ -1,7 +1,7 @@
 {
   "name": "@nutrition-llama/api",
-  "version": "0.1.1",
-  "description": "Nutrition facts analyzer API using OCR and LLM-based structured data extraction",
+  "version": "0.2.0",
+  "description": "Nutrition facts analyzer API using vision LLM",
   "main": "src/app.js",
   "type": "module",
   "scripts": {
@@ -10,11 +10,11 @@
   },
   "author": "John L. Carveth <jlcarveth@gmail.com>",
   "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
     "express": "^4.19.2",
-    "multer": "^1.4.5-lts.1",
-    "node-llama-cpp": "^2.8.15",
-    "sharp": "^0.33.4",
-    "tesseract.js": "^5.1.0"
+    "multer": "^1.4.5-lts.1"
   }
 }
