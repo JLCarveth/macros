@@ -22,7 +22,8 @@
     "tailwindcss/plugin": "npm:tailwindcss@3.4.1/plugin.js",
     "$std/": "https://deno.land/std@0.224.0/",
     "postgres": "https://deno.land/x/postgres@v0.19.3/mod.ts",
-    "@nutrition-llama/shared": "../shared/mod.ts"
+    "@nutrition-llama/shared": "../shared/mod.ts",
+    "react-easy-crop": "https://esm.sh/react-easy-crop@5?alias=react:preact/compat,react-dom:preact/compat"
   },
   "lint": {
     "rules": {

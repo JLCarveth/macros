@@ -29,6 +29,7 @@ import * as $scan from "./routes/scan.tsx";
 import * as $CameraCapture from "./islands/CameraCapture.tsx";
 import * as $DailyLogManager from "./islands/DailyLogManager.tsx";
 import * as $FoodLogForm from "./islands/FoodLogForm.tsx";
+import * as $ImageCropper from "./islands/ImageCropper.tsx";
 import * as $LoginForm from "./islands/LoginForm.tsx";
 import * as $RegisterForm from "./islands/RegisterForm.tsx";
 import type { Manifest } from "$fresh/server.ts";
@@ -64,6 +65,7 @@ const manifest = {
     "./islands/CameraCapture.tsx": $CameraCapture,
     "./islands/DailyLogManager.tsx": $DailyLogManager,
     "./islands/FoodLogForm.tsx": $FoodLogForm,
+    "./islands/ImageCropper.tsx": $ImageCropper,
     "./islands/LoginForm.tsx": $LoginForm,
     "./islands/RegisterForm.tsx": $RegisterForm,
   },

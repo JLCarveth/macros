@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from "preact/hooks";
 import type { NutritionData } from "@nutrition-llama/shared";
+import ImageCropper from "./ImageCropper.tsx";
 
-type CaptureState = "idle" | "camera" | "preview" | "analyzing" | "results" | "saving";
+type CaptureState = "idle" | "camera" | "preview" | "cropping" | "analyzing" | "results" | "saving";
 
 interface AnalysisResult extends NutritionData {
   name?: string;
@@ -103,15 +104,16 @@ export default function CameraCapture() {
     startCamera();
   };
 
-  const analyzeImage = async () => {
-    if (!capturedImage) return;
+  const analyzeImage = async (imageToAnalyze?: string) => {
+    const image = imageToAnalyze || capturedImage;
+    if (!image) return;
 
     setState("analyzing");
     setError("");
 
     try {
       // Convert base64 to blob
-      const response = await fetch(capturedImage);
+      const response = await fetch(image);
       const blob = await response.blob();
 
       // Create form data
@@ -136,6 +138,19 @@ export default function CameraCapture() {
       setError(err instanceof Error ? err.message : "Analysis failed. Please try again.");
       setState("preview");
     }
+  };
+
+  const startCropping = () => {
+    setState("cropping");
+  };
+
+  const handleCropComplete = (croppedImageUrl: string) => {
+    setCapturedImage(croppedImageUrl);
+    analyzeImage(croppedImageUrl);
+  };
+
+  const cancelCropping = () => {
+    setState("preview");
   };
 
   const saveFood = async () => {
@@ -264,13 +279,28 @@ export default function CameraCapture() {
               Retake
             </button>
             <button
-              onClick={analyzeImage}
+              onClick={startCropping}
+              class="px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+            >
+              Crop
+            </button>
+            <button
+              onClick={() => analyzeImage()}
               class="px-6 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
             >
               Analyze
             </button>
           </div>
         </div>
+      )}
+
+      {/* Cropping State */}
+      {state === "cropping" && capturedImage && (
+        <ImageCropper
+          imageSrc={capturedImage}
+          onCropComplete={handleCropComplete}
+          onCancel={cancelCropping}
+        />
       )}
 
       {/* Analyzing State */}
