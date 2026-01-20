@@ -29,16 +29,42 @@ export default function CameraCapture() {
     };
   }, []);
 
+  // Attach stream to video element when in camera state
+  useEffect(() => {
+    if (state === "camera" && streamRef.current && videoRef.current) {
+      const video = videoRef.current;
+      video.srcObject = streamRef.current;
+
+      video.onloadedmetadata = () => {
+        console.log("Video metadata loaded. Dimensions:", video.videoWidth, "x", video.videoHeight);
+        video.play().then(() => {
+          console.log("Video playing. Current dimensions:", video.videoWidth, "x", video.videoHeight);
+        }).catch((err) => {
+          console.error("Play error:", err);
+        });
+      };
+
+      video.onerror = (e) => {
+        console.error("Video error event:", e);
+      };
+    }
+  }, [state]);
+
   const startCamera = async () => {
     setError("");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
       });
+
+      // Debug: log stream info
+      const videoTrack = stream.getVideoTracks()[0];
+      console.log("Stream obtained:", stream.id);
+      console.log("Video track:", videoTrack?.label, "enabled:", videoTrack?.enabled, "readyState:", videoTrack?.readyState);
+      console.log("Track settings:", JSON.stringify(videoTrack?.getSettings()));
+
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
+      // Set state first so the video element renders
       setState("camera");
     } catch (err) {
       setError("Could not access camera. Please ensure camera permissions are granted.");
@@ -202,6 +228,7 @@ export default function CameraCapture() {
               ref={videoRef}
               autoPlay
               playsInline
+              muted
               class="w-full h-full object-cover"
             />
             <div class="absolute inset-0 border-4 border-white/30 m-8 rounded pointer-events-none" />

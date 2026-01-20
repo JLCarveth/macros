@@ -13,13 +13,52 @@ interface Migration {
   appliedAt: Date;
 }
 
-async function getClient(): Promise<Client> {
-  const databaseUrl = Deno.env.get("DATABASE_URL");
-  if (!databaseUrl) {
-    throw new Error("DATABASE_URL environment variable is required");
+/**
+ * Build database connection config from environment variables.
+ * Prefers individual PG* variables, falls back to DATABASE_URL.
+ */
+function getConnectionConfig(): string | {
+  hostname: string;
+  port: number;
+  user: string;
+  password: string;
+  database: string;
+} {
+  const pgHost = Deno.env.get("PGHOST");
+  const pgUser = Deno.env.get("PGUSER");
+  const pgPassword = Deno.env.get("PGPASSWORD");
+  const pgDatabase = Deno.env.get("PGDATABASE");
+  const pgPort = Deno.env.get("PGPORT");
+
+  // Prefer individual PG* variables if PGHOST is set
+  if (pgHost) {
+    if (!pgUser || !pgDatabase) {
+      throw new Error(
+        "When using PGHOST, PGUSER and PGDATABASE are also required"
+      );
+    }
+    return {
+      hostname: pgHost,
+      port: pgPort ? parseInt(pgPort, 10) : 5432,
+      user: pgUser,
+      password: pgPassword || "",
+      database: pgDatabase,
+    };
   }
 
-  const client = new Client(databaseUrl);
+  // Fall back to DATABASE_URL
+  const databaseUrl = Deno.env.get("DATABASE_URL");
+  if (!databaseUrl) {
+    throw new Error(
+      "Database configuration required: set PGHOST/PGUSER/PGDATABASE or DATABASE_URL"
+    );
+  }
+  return databaseUrl;
+}
+
+async function getClient(): Promise<Client> {
+  const config = getConnectionConfig();
+  const client = new Client(config);
   await client.connect();
   return client;
 }

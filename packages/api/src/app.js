@@ -10,8 +10,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import multer from "multer";
 import Tesseract from "tesseract.js";
-import fs from "node:fs";
-import https from "node:https";
 
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -98,19 +96,7 @@ async function initializeServer() {
     });
 
     const PORT = process.env.PORT || 3000;
-    let server;
-
-    if (process.env.NODE_ENV === "development") {
-      const options = {
-        key: fs.readFileSync(process.env.SSL_KEY_PATH),
-        cert: fs.readFileSync(process.env.SSL_CERT_PATH),
-      };
-      server = https.createServer(options, app);
-    } else {
-      server = app;
-    }
-
-    server.listen(PORT, () => {
+    app.listen(PORT, () => {
       console.log(`Server listening on port ${PORT}`);
     });
 

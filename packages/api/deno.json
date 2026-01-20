@@ -11,8 +11,8 @@
     "@nutrition-llama/shared": "../shared/mod.ts"
   },
   "tasks": {
-    "dev": "deno run --allow-net --allow-read --allow-write --allow-env --allow-ffi src/app.js",
-    "start": "deno run --allow-net --allow-read --allow-write --allow-env --allow-ffi src/app.js"
+    "dev": "deno run -Ar src/app.js",
+    "start": "deno run -Ar src/app.js"
   },
   "compilerOptions": {
     "allowJs": true,
