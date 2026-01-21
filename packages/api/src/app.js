@@ -8,10 +8,11 @@ const LLM_API_URL = process.env.LLM_API_URL || "http://localhost:1234/v1";
 const LLM_API_KEY = process.env.LLM_API_KEY || "lm-studio";
 const LLM_MODEL = process.env.LLM_MODEL || "gpt-4o-mini";
 
-const SYSTEM_PROMPT = `You are a nutrition label analyzer. Extract nutrition facts from the provided image and return ONLY valid JSON matching this schema:
+const SYSTEM_PROMPT = `You are a nutrition label analyzer. Extract ALL nutrition facts from the provided image.
 
+Return ONLY valid JSON with this structure:
 {
-  "servingSize": { "value": number, "unit": "g" | "ml" },
+  "servingSize": { "value": number, "unit": "g" | "ml" | "piece" | "bar" | "cup" | "tbsp" },
   "calories": { "value": number, "unit": "kcal" },
   "totalFat": { "value": number, "unit": "g" },
   "carbohydrates": { "value": number, "unit": "g" },
@@ -22,8 +23,8 @@ const SYSTEM_PROMPT = `You are a nutrition label analyzer. Extract nutrition fac
   "sodium": { "value": number, "unit": "mg" }
 }
 
-Required fields: servingSize, calories, totalFat, protein, carbohydrates.
-Optional fields: fiber, sugars, cholesterol, sodium (omit if not visible).
+Extract ALL fields. Fiber is often listed as "Dietary Fiber". Sugars may be listed as "Total Sugars". Look carefully for sodium - it's usually in mg.
+Only omit a field if it is truly not present on the label.
 Return ONLY the JSON object, no markdown or explanation.`;
 
 async function analyzeWithVisionAPI(imageBuffer, mimeType) {
