@@ -17,6 +17,9 @@ type HandlePosition = "nw" | "ne" | "sw" | "se" | null;
 
 const HANDLE_SIZE = 24;
 const MIN_CROP_SIZE = 50;
+const TARGET_CROP_RATIO = 0.6; // Crop should appear at least 60% of viewport
+const MAX_ZOOM = 4;
+const MIN_ZOOM = 1;
 
 export default function ImageCropper({
   imageSrc,
@@ -26,11 +29,18 @@ export default function ImageCropper({
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
+  const animationRef = useRef<number | null>(null);
 
   const [imageLoaded, setImageLoaded] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [crop, setCrop] = useState<CropArea>({ x: 0, y: 0, width: 0, height: 0 });
   const [displaySize, setDisplaySize] = useState({ width: 0, height: 0 });
+
+  // Auto-zoom state
+  const [zoom, setZoom] = useState(1);
+  const [viewOffset, setViewOffset] = useState({ x: 0, y: 0 });
+  const [targetZoom, setTargetZoom] = useState(1);
+  const [targetOffset, setTargetOffset] = useState({ x: 0, y: 0 });
 
   // Interaction state
   const [isDragging, setIsDragging] = useState(false);
@@ -89,6 +99,99 @@ export default function ImageCropper({
     });
   }, [imageLoaded, rotation, getRotatedDimensions]);
 
+  // Calculate target zoom based on crop size (with delay after user releases)
+  useEffect(() => {
+    if (displaySize.width === 0 || displaySize.height === 0) return;
+    if (crop.width === 0 || crop.height === 0) return;
+
+    // Don't recalculate zoom while user is actively dragging
+    if (isDragging) return;
+
+    // Wait a moment after release before zooming
+    const timeoutId = setTimeout(() => {
+      // Calculate how small the crop is relative to the display
+      const cropRatioW = crop.width / displaySize.width;
+      const cropRatioH = crop.height / displaySize.height;
+      const currentRatio = Math.min(cropRatioW, cropRatioH);
+
+      let newZoom: number;
+      if (currentRatio >= TARGET_CROP_RATIO) {
+        newZoom = MIN_ZOOM;
+      } else {
+        newZoom = Math.min(MAX_ZOOM, TARGET_CROP_RATIO / currentRatio);
+      }
+
+      setTargetZoom(newZoom);
+    }, 400);
+
+    return () => clearTimeout(timeoutId);
+  }, [crop.width, crop.height, displaySize.width, displaySize.height, isDragging]);
+
+  // Calculate target viewOffset to center the crop area
+  useEffect(() => {
+    if (displaySize.width === 0 || displaySize.height === 0) return;
+
+    // Don't recenter while dragging
+    if (isDragging) return;
+
+    if (targetZoom === 1) {
+      setTargetOffset({ x: 0, y: 0 });
+      return;
+    }
+
+    const cropCenterX = crop.x + crop.width / 2;
+    const cropCenterY = crop.y + crop.height / 2;
+
+    // Viewport size in image coordinates when zoomed
+    const viewportWidth = displaySize.width / targetZoom;
+    const viewportHeight = displaySize.height / targetZoom;
+
+    // Offset so crop center is at viewport center
+    let offsetX = cropCenterX - viewportWidth / 2;
+    let offsetY = cropCenterY - viewportHeight / 2;
+
+    // Clamp to image bounds
+    offsetX = Math.max(0, Math.min(offsetX, displaySize.width - viewportWidth));
+    offsetY = Math.max(0, Math.min(offsetY, displaySize.height - viewportHeight));
+
+    setTargetOffset({ x: offsetX, y: offsetY });
+  }, [crop.x, crop.y, crop.width, crop.height, targetZoom, displaySize.width, displaySize.height, isDragging]);
+
+  // Animate zoom and offset smoothly
+  useEffect(() => {
+    const animate = () => {
+      const LERP_FACTOR = 0.15;
+
+      setZoom((currentZoom) => {
+        const diff = targetZoom - currentZoom;
+        if (Math.abs(diff) < 0.01) return targetZoom;
+        return currentZoom + diff * LERP_FACTOR;
+      });
+
+      setViewOffset((currentOffset) => {
+        const diffX = targetOffset.x - currentOffset.x;
+        const diffY = targetOffset.y - currentOffset.y;
+        if (Math.abs(diffX) < 0.5 && Math.abs(diffY) < 0.5) {
+          return targetOffset;
+        }
+        return {
+          x: currentOffset.x + diffX * LERP_FACTOR,
+          y: currentOffset.y + diffY * LERP_FACTOR,
+        };
+      });
+
+      animationRef.current = requestAnimationFrame(animate);
+    };
+
+    animationRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, [targetZoom, targetOffset]);
+
   // Draw canvas
   useEffect(() => {
     if (!canvasRef.current || !imageRef.current || !imageLoaded) return;
@@ -103,15 +206,20 @@ export default function ImageCropper({
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // Apply zoom and offset transformation
+    ctx.save();
+    ctx.scale(zoom, zoom);
+    ctx.translate(-viewOffset.x, -viewOffset.y);
+
     // Draw rotated image
     ctx.save();
-    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.translate(displaySize.width / 2, displaySize.height / 2);
     ctx.rotate((rotation * Math.PI) / 180);
 
     const img = imageRef.current;
     const isRotated90 = rotation === 90 || rotation === 270;
-    const drawWidth = isRotated90 ? canvas.height : canvas.width;
-    const drawHeight = isRotated90 ? canvas.width : canvas.height;
+    const drawWidth = isRotated90 ? displaySize.height : displaySize.width;
+    const drawHeight = isRotated90 ? displaySize.width : displaySize.height;
 
     ctx.drawImage(img, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
     ctx.restore();
@@ -119,22 +227,22 @@ export default function ImageCropper({
     // Draw dark overlay outside crop area
     ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
     // Top
-    ctx.fillRect(0, 0, canvas.width, crop.y);
+    ctx.fillRect(0, 0, displaySize.width, crop.y);
     // Bottom
-    ctx.fillRect(0, crop.y + crop.height, canvas.width, canvas.height - crop.y - crop.height);
+    ctx.fillRect(0, crop.y + crop.height, displaySize.width, displaySize.height - crop.y - crop.height);
     // Left
     ctx.fillRect(0, crop.y, crop.x, crop.height);
     // Right
-    ctx.fillRect(crop.x + crop.width, crop.y, canvas.width - crop.x - crop.width, crop.height);
+    ctx.fillRect(crop.x + crop.width, crop.y, displaySize.width - crop.x - crop.width, crop.height);
 
-    // Draw crop border
+    // Draw crop border (scale line width inversely so it appears consistent)
     ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2 / zoom;
     ctx.strokeRect(crop.x, crop.y, crop.width, crop.height);
 
     // Draw grid lines (rule of thirds)
     ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 1 / zoom;
     const thirdW = crop.width / 3;
     const thirdH = crop.height / 3;
     ctx.beginPath();
@@ -148,8 +256,9 @@ export default function ImageCropper({
     ctx.lineTo(crop.x + crop.width, crop.y + thirdH * 2);
     ctx.stroke();
 
-    // Draw corner handles
+    // Draw corner handles (scale handle size inversely so they stay usable when zoomed)
     ctx.fillStyle = "#ffffff";
+    const handleRadius = HANDLE_SIZE / 2 / zoom;
     const handles = [
       { x: crop.x, y: crop.y }, // NW
       { x: crop.x + crop.width, y: crop.y }, // NE
@@ -159,27 +268,35 @@ export default function ImageCropper({
 
     handles.forEach(({ x, y }) => {
       ctx.beginPath();
-      ctx.arc(x, y, HANDLE_SIZE / 2, 0, Math.PI * 2);
+      ctx.arc(x, y, handleRadius, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = "#4f46e5";
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 3 / zoom;
       ctx.stroke();
     });
-  }, [displaySize, crop, rotation, imageLoaded]);
 
-  // Get pointer position relative to canvas
+    ctx.restore();
+  }, [displaySize, crop, rotation, imageLoaded, zoom, viewOffset]);
+
+  // Get pointer position relative to canvas, accounting for zoom and offset
   const getPointerPosition = (e: MouseEvent | TouchEvent) => {
     if (!canvasRef.current) return { x: 0, y: 0 };
     const rect = canvasRef.current.getBoundingClientRect();
     const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
     const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
+
+    // Get viewport position (relative to canvas element)
+    const viewportX = clientX - rect.left;
+    const viewportY = clientY - rect.top;
+
+    // Translate to image coordinates accounting for zoom and offset
     return {
-      x: clientX - rect.left,
-      y: clientY - rect.top,
+      x: viewportX / zoom + viewOffset.x,
+      y: viewportY / zoom + viewOffset.y,
     };
   };
 
-  // Check if pointer is on a handle
+  // Check if pointer is on a handle (accounting for zoom-scaled handles)
   const getHandleAtPosition = (x: number, y: number): HandlePosition => {
     const handles: { pos: HandlePosition; x: number; y: number }[] = [
       { pos: "nw", x: crop.x, y: crop.y },
@@ -188,9 +305,12 @@ export default function ImageCropper({
       { pos: "se", x: crop.x + crop.width, y: crop.y + crop.height },
     ];
 
+    // Handle hit area in image coordinates (handles are drawn at HANDLE_SIZE / zoom)
+    const hitRadius = HANDLE_SIZE / zoom;
+
     for (const handle of handles) {
       const dist = Math.sqrt((x - handle.x) ** 2 + (y - handle.y) ** 2);
-      if (dist <= HANDLE_SIZE) {
+      if (dist <= hitRadius) {
         return handle.pos;
       }
     }
@@ -301,6 +421,11 @@ export default function ImageCropper({
   }, [isDragging, dragStart, cropStart, crop, activeHandle, displaySize]);
 
   const handleRotate = () => {
+    // Reset zoom when rotating
+    setZoom(1);
+    setViewOffset({ x: 0, y: 0 });
+    setTargetZoom(1);
+    setTargetOffset({ x: 0, y: 0 });
     setRotation((prev) => (prev + 90) % 360);
   };
 
@@ -381,7 +506,7 @@ export default function ImageCropper({
         )}
       </div>
 
-      <div class="flex justify-center gap-2">
+      <div class="flex justify-center items-center gap-4">
         <button
           onClick={handleRotate}
           class="flex items-center gap-2 px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
@@ -397,10 +522,15 @@ export default function ImageCropper({
           </svg>
           Rotate
         </button>
+        {zoom > 1.05 && (
+          <span class="text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded">
+            {zoom.toFixed(1)}x zoom
+          </span>
+        )}
       </div>
 
       <p class="text-sm text-gray-500 text-center">
-        Drag corners to resize. Drag inside to move.
+        Drag corners to resize. Drag inside to move.{zoom > 1.05 ? " Auto-zoomed for easier selection." : ""}
       </p>
 
       <div class="flex justify-center gap-4">
