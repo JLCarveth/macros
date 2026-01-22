@@ -74,7 +74,7 @@ export default function ImageCropper({
 
     const container = containerRef.current;
     const containerWidth = container.clientWidth;
-    const maxHeight = 400;
+    const maxHeight = 500;
 
     const { width: imgWidth, height: imgHeight } = getRotatedDimensions();
 
@@ -121,13 +121,24 @@ export default function ImageCropper({
         newZoom = Math.min(MAX_ZOOM, TARGET_CROP_RATIO / currentRatio);
       }
 
+      // Ensure the entire crop area (with handle padding) can fit in the viewport
+      // Viewport size at newZoom = displaySize / newZoom
+      // We need: crop.width + 2*handlePadding <= displaySize.width / newZoom
+      const handlePadding = HANDLE_SIZE + 8; // Extra margin for usability
+      const maxZoomForWidth = displaySize.width / (crop.width + 2 * handlePadding);
+      const maxZoomForHeight = displaySize.height / (crop.height + 2 * handlePadding);
+      const maxZoomToFitCrop = Math.min(maxZoomForWidth, maxZoomForHeight);
+
+      newZoom = Math.min(newZoom, maxZoomToFitCrop);
+      newZoom = Math.max(MIN_ZOOM, newZoom); // Don't go below 1
+
       setTargetZoom(newZoom);
     }, 400);
 
     return () => clearTimeout(timeoutId);
   }, [crop.width, crop.height, displaySize.width, displaySize.height, isDragging]);
 
-  // Calculate target viewOffset to center the crop area
+  // Calculate target viewOffset to keep the entire crop area visible (including handles)
   useEffect(() => {
     if (displaySize.width === 0 || displaySize.height === 0) return;
 
@@ -139,16 +150,43 @@ export default function ImageCropper({
       return;
     }
 
-    const cropCenterX = crop.x + crop.width / 2;
-    const cropCenterY = crop.y + crop.height / 2;
-
     // Viewport size in image coordinates when zoomed
     const viewportWidth = displaySize.width / targetZoom;
     const viewportHeight = displaySize.height / targetZoom;
 
-    // Offset so crop center is at viewport center
-    let offsetX = cropCenterX - viewportWidth / 2;
-    let offsetY = cropCenterY - viewportHeight / 2;
+    // Add padding for handles (in image coordinates)
+    const handlePadding = (HANDLE_SIZE / targetZoom) + 4;
+
+    // Calculate the bounding box we need to show (crop + handle padding)
+    const requiredLeft = crop.x - handlePadding;
+    const requiredRight = crop.x + crop.width + handlePadding;
+    const requiredTop = crop.y - handlePadding;
+    const requiredBottom = crop.y + crop.height + handlePadding;
+
+    // If the crop area (with handles) fits in viewport, center it
+    const requiredWidth = requiredRight - requiredLeft;
+    const requiredHeight = requiredBottom - requiredTop;
+
+    let offsetX: number;
+    let offsetY: number;
+
+    if (requiredWidth <= viewportWidth) {
+      // Crop fits horizontally - center it
+      const cropCenterX = crop.x + crop.width / 2;
+      offsetX = cropCenterX - viewportWidth / 2;
+    } else {
+      // Crop is wider than viewport - align to show as much as possible from the left
+      offsetX = requiredLeft;
+    }
+
+    if (requiredHeight <= viewportHeight) {
+      // Crop fits vertically - center it
+      const cropCenterY = crop.y + crop.height / 2;
+      offsetY = cropCenterY - viewportHeight / 2;
+    } else {
+      // Crop is taller than viewport - align to show as much as possible from the top
+      offsetY = requiredTop;
+    }
 
     // Clamp to image bounds
     offsetX = Math.max(0, Math.min(offsetX, displaySize.width - viewportWidth));
@@ -487,7 +525,7 @@ export default function ImageCropper({
       <div
         ref={containerRef}
         class="relative bg-gray-900 rounded-lg overflow-hidden flex items-center justify-center"
-        style={{ minHeight: "300px", maxHeight: "400px" }}
+        style={{ minHeight: "350px", maxHeight: "500px" }}
       >
         {!imageLoaded ? (
           <div class="text-white">Loading...</div>
