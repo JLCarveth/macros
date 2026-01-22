@@ -7,6 +7,7 @@ Type=simple
 User=macros
 Group=macros
 WorkingDirectory=/opt/macros/packages/web
+ExecStartPre=/usr/local/bin/deno run -A dev.ts build
 ExecStart=/usr/local/bin/deno run -A main.ts
 Restart=on-failure
 RestartSec=5
