@@ -13,6 +13,7 @@ import * as $api_auth_refresh from "./routes/api/auth/refresh.ts";
 import * as $api_auth_register from "./routes/api/auth/register.ts";
 import * as $api_foods_id_ from "./routes/api/foods/[id].ts";
 import * as $api_foods_index from "./routes/api/foods/index.ts";
+import * as $api_foods_search from "./routes/api/foods/search.ts";
 import * as $api_foods_upc_code_ from "./routes/api/foods/upc/[code].ts";
 import * as $api_log_id_ from "./routes/api/log/[id].ts";
 import * as $api_log_daily from "./routes/api/log/daily.ts";
@@ -31,7 +32,9 @@ import * as $upc from "./routes/upc.tsx";
 import * as $BarcodeScanner from "./islands/BarcodeScanner.tsx";
 import * as $CameraCapture from "./islands/CameraCapture.tsx";
 import * as $DailyLogManager from "./islands/DailyLogManager.tsx";
+import * as $FoodBrowser from "./islands/FoodBrowser.tsx";
 import * as $FoodLogForm from "./islands/FoodLogForm.tsx";
+import * as $FoodSearch from "./islands/FoodSearch.tsx";
 import * as $ImageCropper from "./islands/ImageCropper.tsx";
 import * as $LoginForm from "./islands/LoginForm.tsx";
 import * as $RegisterForm from "./islands/RegisterForm.tsx";
@@ -51,6 +54,7 @@ const manifest = {
     "./routes/api/auth/register.ts": $api_auth_register,
     "./routes/api/foods/[id].ts": $api_foods_id_,
     "./routes/api/foods/index.ts": $api_foods_index,
+    "./routes/api/foods/search.ts": $api_foods_search,
     "./routes/api/foods/upc/[code].ts": $api_foods_upc_code_,
     "./routes/api/log/[id].ts": $api_log_id_,
     "./routes/api/log/daily.ts": $api_log_daily,
@@ -71,7 +75,9 @@ const manifest = {
     "./islands/BarcodeScanner.tsx": $BarcodeScanner,
     "./islands/CameraCapture.tsx": $CameraCapture,
     "./islands/DailyLogManager.tsx": $DailyLogManager,
+    "./islands/FoodBrowser.tsx": $FoodBrowser,
     "./islands/FoodLogForm.tsx": $FoodLogForm,
+    "./islands/FoodSearch.tsx": $FoodSearch,
     "./islands/ImageCropper.tsx": $ImageCropper,
     "./islands/LoginForm.tsx": $LoginForm,
     "./islands/RegisterForm.tsx": $RegisterForm,

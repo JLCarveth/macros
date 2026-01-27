@@ -54,6 +54,13 @@ export interface NutritionRecord {
 }
 
 /**
+ * Nutrition record with source indicator (user-owned vs system/USDA)
+ */
+export interface NutritionRecordWithSource extends NutritionRecord {
+  isSystem: boolean;
+}
+
+/**
  * Input for creating a nutrition record
  */
 export interface CreateNutritionRecordInput {

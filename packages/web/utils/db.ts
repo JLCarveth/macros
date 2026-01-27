@@ -7,6 +7,7 @@ import type {
   User,
   UserWithPassword,
   NutritionRecord,
+  NutritionRecordWithSource,
   CreateNutritionRecordInput,
   FoodLogEntry,
   FoodLogEntryWithNutrition,
@@ -252,6 +253,132 @@ export async function deleteNutritionRecord(
     DELETE FROM nutrition_records WHERE id = ${id} AND user_id = ${userId}
   `;
   return true;
+}
+
+// ============ SYSTEM / SEARCH FUNCTIONS ============
+
+let cachedSystemUserId: string | null = null;
+
+export async function getSystemUserId(): Promise<string | null> {
+  if (cachedSystemUserId) return cachedSystemUserId;
+
+  const [row] = await sql`
+    SELECT id FROM users WHERE email = 'system@nutrition-llama.com'
+  `;
+
+  if (row) {
+    cachedSystemUserId = row.id as string;
+  }
+
+  return cachedSystemUserId;
+}
+
+function mapNutritionRecordWithSource(
+  row: Record<string, unknown>,
+  systemUserId: string | null
+): NutritionRecordWithSource {
+  return {
+    ...mapNutritionRecord(row),
+    isSystem: row.user_id === systemUserId,
+  };
+}
+
+export async function searchFoods(
+  userId: string,
+  query: string,
+  source: "all" | "user" | "system" = "all",
+  limit: number = 20
+): Promise<NutritionRecordWithSource[]> {
+  const systemUserId = await getSystemUserId();
+  const pattern = `%${query}%`;
+
+  let rows: Record<string, unknown>[];
+
+  if (source === "user") {
+    rows = await sql`
+      SELECT * FROM nutrition_records
+      WHERE user_id = ${userId} AND name ILIKE ${pattern}
+      ORDER BY name ASC
+      LIMIT ${limit}
+    `;
+  } else if (source === "system") {
+    if (!systemUserId) return [];
+    rows = await sql`
+      SELECT * FROM nutrition_records
+      WHERE user_id = ${systemUserId} AND name ILIKE ${pattern}
+      ORDER BY name ASC
+      LIMIT ${limit}
+    `;
+  } else {
+    // "all" - user foods first, then system foods
+    if (!systemUserId) {
+      rows = await sql`
+        SELECT * FROM nutrition_records
+        WHERE user_id = ${userId} AND name ILIKE ${pattern}
+        ORDER BY name ASC
+        LIMIT ${limit}
+      `;
+    } else {
+      rows = await sql`
+        (
+          SELECT *, 0 as sort_order FROM nutrition_records
+          WHERE user_id = ${userId} AND name ILIKE ${pattern}
+        )
+        UNION ALL
+        (
+          SELECT *, 1 as sort_order FROM nutrition_records
+          WHERE user_id = ${systemUserId} AND name ILIKE ${pattern}
+        )
+        ORDER BY sort_order ASC, name ASC
+        LIMIT ${limit}
+      `;
+    }
+  }
+
+  return rows.map((row) => mapNutritionRecordWithSource(row, systemUserId));
+}
+
+export async function getFoodByIdAllowSystem(
+  id: string,
+  userId: string
+): Promise<NutritionRecordWithSource | null> {
+  const systemUserId = await getSystemUserId();
+
+  let row: Record<string, unknown> | undefined;
+
+  if (systemUserId) {
+    [row] = await sql`
+      SELECT * FROM nutrition_records
+      WHERE id = ${id} AND (user_id = ${userId} OR user_id = ${systemUserId})
+    `;
+  } else {
+    [row] = await sql`
+      SELECT * FROM nutrition_records
+      WHERE id = ${id} AND user_id = ${userId}
+    `;
+  }
+
+  if (!row) return null;
+  return mapNutritionRecordWithSource(row, systemUserId);
+}
+
+export async function countFoods(
+  userId: string,
+  source: "user" | "system"
+): Promise<number> {
+  if (source === "user") {
+    const [row] = await sql`
+      SELECT COUNT(*)::int as count FROM nutrition_records WHERE user_id = ${userId}
+    `;
+    return row?.count ?? 0;
+  } else {
+    const systemUserId = await getSystemUserId();
+    if (!systemUserId) return 0;
+    const [row] = await sql`
+      SELECT COUNT(*)::int as count FROM nutrition_records WHERE user_id = ${systemUserId}
+    `;
+    return row?.count ?? 0;
+  }
 }
 
 // ============ FOOD LOG FUNCTIONS ============

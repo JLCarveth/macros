@@ -1,6 +1,6 @@
 import { Handlers } from "$fresh/server.ts";
 import { getCookie, verifyAccessToken } from "../../../utils/auth.ts";
-import { getFoodById, updateNutritionRecord, deleteNutritionRecord } from "../../../utils/db.ts";
+import { getFoodById, getFoodByIdAllowSystem, updateNutritionRecord, deleteNutritionRecord } from "../../../utils/db.ts";
 
 export const handler: Handlers = {
   // GET /api/foods/:id - Get a single food
@@ -23,7 +23,7 @@ export const handler: Handlers = {
 
     try {
       const { id } = ctx.params;
-      const food = await getFoodById(id, payload.userId);
+      const food = await getFoodByIdAllowSystem(id, payload.userId);
 
       if (!food) {
         return new Response(

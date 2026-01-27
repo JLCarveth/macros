@@ -1,5 +1,6 @@
 import { useState, useEffect } from "preact/hooks";
-import type { DailySummary, MealType, NutritionRecord, FoodLogEntryWithNutrition } from "@nutrition-llama/shared";
+import type { DailySummary, MealType, NutritionRecordWithSource, FoodLogEntryWithNutrition } from "@nutrition-llama/shared";
+import FoodSearch from "./FoodSearch.tsx";
 
 interface DailyLogManagerProps {
   date: string;
@@ -13,9 +14,8 @@ function calculateCaloriesFromMacros(protein: number, carbs: number, fat: number
 
 export default function DailyLogManager({ date, initialSummary }: DailyLogManagerProps) {
   const [summary, setSummary] = useState<DailySummary | null>(initialSummary);
-  const [foods, setFoods] = useState<NutritionRecord[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [selectedFoodId, setSelectedFoodId] = useState("");
+  const [selectedFood, setSelectedFood] = useState<NutritionRecordWithSource | null>(null);
   const [servings, setServings] = useState("1");
   const [mealType, setMealType] = useState<MealType>("snack");
   const [loading, setLoading] = useState(false);
@@ -38,25 +38,6 @@ export default function DailyLogManager({ date, initialSummary }: DailyLogManage
     parseFloat(quickFat) || 0
   );
 
-  // Load user's foods when add form is opened
-  useEffect(() => {
-    if (showAddForm && foods.length === 0) {
-      loadFoods();
-    }
-  }, [showAddForm]);
-
-  const loadFoods = async () => {
-    try {
-      const response = await fetch("/api/foods");
-      if (response.ok) {
-        const data = await response.json();
-        setFoods(data);
-      }
-    } catch (err) {
-      console.error("Failed to load foods:", err);
-    }
-  };
-
   const refreshSummary = async () => {
     try {
       const response = await fetch(`/api/log/daily?date=${date}`);
@@ -73,7 +54,7 @@ export default function DailyLogManager({ date, initialSummary }: DailyLogManage
     e.preventDefault();
 
     // Validate based on entry mode
-    if (entryMode === "food" && !selectedFoodId) return;
+    if (entryMode === "food" && !selectedFood) return;
     if (entryMode === "quick") {
       const protein = parseFloat(quickProtein) || 0;
       const carbs = parseFloat(quickCarbs) || 0;
@@ -92,7 +73,7 @@ export default function DailyLogManager({ date, initialSummary }: DailyLogManage
 
       if (entryMode === "food") {
         body = {
-          nutritionRecordId: selectedFoodId,
+          nutritionRecordId: selectedFood!.id,
           servings: parseFloat(servings),
           mealType,
           loggedDate: date,
@@ -125,7 +106,7 @@ export default function DailyLogManager({ date, initialSummary }: DailyLogManage
 
       // Reset form and refresh
       setShowAddForm(false);
-      setSelectedFoodId("");
+      setSelectedFood(null);
       setServings("1");
       setMealType("snack");
       setQuickProtein("");
@@ -273,33 +254,51 @@ export default function DailyLogManager({ date, initialSummary }: DailyLogManage
               /* Food Selection Mode */
               <>
                 <div>
-                  <label class="block text-sm font-medium text-gray-700">Select Food</label>
-                  <select
-                    value={selectedFoodId}
-                    onChange={(e) => setSelectedFoodId((e.target as HTMLSelectElement).value)}
-                    required
-                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                  >
-                    <option value="">Choose a food...</option>
-                    {foods.map((food) => (
-                      <option key={food.id} value={food.id}>
-                        {food.name} ({food.calories} cal per serving)
-                      </option>
-                    ))}
-                  </select>
-                  {foods.length === 0 && (
-                    <p class="mt-2 text-sm text-gray-500">
-                      No saved foods.{" "}
-                      <a href="/foods/new" class="text-primary-600 hover:underline">
-                        Add a food first
-                      </a>
-                    </p>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Search Food</label>
+                  {selectedFood ? (
+                    <div class="flex items-center gap-2 p-2 bg-gray-50 border border-gray-200 rounded-md">
+                      <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-1.5">
+                          <span class="text-sm font-medium text-gray-900 truncate">{selectedFood.name}</span>
+                          {selectedFood.isSystem && (
+                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700">
+                              USDA
+                            </span>
+                          )}
+                        </div>
+                        <span class="text-xs text-gray-500">
+                          {selectedFood.calories} cal per {selectedFood.servingSizeValue}{selectedFood.servingSizeUnit}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedFood(null)}
+                        class="p-1 text-gray-400 hover:text-gray-600"
+                        title="Clear selection"
+                      >
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ) : (
+                    <FoodSearch
+                      onSelect={(food) => setSelectedFood(food)}
+                      placeholder="Search your foods or USDA database..."
+                    />
                   )}
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">
                   <div>
-                    <label class="block text-sm font-medium text-gray-700">Servings</label>
+                    <label class="block text-sm font-medium text-gray-700">
+                      Servings
+                      {selectedFood && (
+                        <span class="font-normal text-gray-400">
+                          {" "}({selectedFood.servingSizeValue}{selectedFood.servingSizeUnit} each)
+                        </span>
+                      )}
+                    </label>
                     <input
                       type="number"
                       step="0.25"
@@ -412,7 +411,7 @@ export default function DailyLogManager({ date, initialSummary }: DailyLogManage
               </button>
               <button
                 type="submit"
-                disabled={loading || (entryMode === "food" && !selectedFoodId)}
+                disabled={loading || (entryMode === "food" && !selectedFood)}
                 class="flex-1 px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50"
               >
                 {loading ? "Adding..." : "Add to Log"}
