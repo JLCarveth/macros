@@ -58,7 +58,9 @@ async function main() {
         return n ? n.amount : null;
       };
 
-      const calories = getNutrient("208"); // Energy (kcal)
+      // Try multiple energy nutrient numbers - different foods use different ones
+      // 208 = Energy (kcal), 957 = Energy (Atwater General), 958 = Energy (Atwater Specific)
+      const calories = getNutrient("208") ?? getNutrient("957") ?? getNutrient("958");
       const protein = getNutrient("203");
       const totalFat = getNutrient("204");
       const carbohydrates = getNutrient("205");

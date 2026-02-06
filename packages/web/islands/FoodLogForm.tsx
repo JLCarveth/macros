@@ -42,12 +42,44 @@ export default function FoodLogForm({ mode, foodId, foodName, initialUpc, foodNu
 
   // Log form state
   const [servings, setServings] = useState("1");
+  const [amountUnit, setAmountUnit] = useState<"servings" | "g" | "ml">("servings");
   const [mealType, setMealType] = useState<MealType>("snack");
   const [loggedDate, setLoggedDate] = useState(new Date().toISOString().split("T")[0]);
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
+
+  // Helper function to calculate servings based on selected unit
+  const calculateServings = (): number => {
+    const amount = parseFloat(servings) || 0;
+    if (amountUnit === "servings") {
+      return amount;
+    }
+    // Convert weight to servings
+    if (!foodNutrition?.servingSizeValue || foodNutrition.servingSizeValue === 0) {
+      return amount; // Fallback
+    }
+    return amount / foodNutrition.servingSizeValue;
+  };
+
+  // Handle unit change with value conversion for better UX
+  const handleUnitChange = (newUnit: "servings" | "g" | "ml") => {
+    const currentAmount = parseFloat(servings) || 1;
+    const currentServings = amountUnit === "servings"
+      ? currentAmount
+      : currentAmount / (foodNutrition?.servingSizeValue || 1);
+
+    let newAmount: number;
+    if (newUnit === "servings") {
+      newAmount = currentServings;
+    } else {
+      newAmount = currentServings * (foodNutrition?.servingSizeValue || 1);
+    }
+
+    setServings(newAmount.toFixed(2));
+    setAmountUnit(newUnit);
+  };
 
   const handleCreateFood = async (e: Event) => {
     e.preventDefault();
@@ -99,7 +131,7 @@ export default function FoodLogForm({ mode, foodId, foodName, initialUpc, foodNu
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           nutritionRecordId: foodId,
-          servings: parseFloat(servings),
+          servings: calculateServings(),
           mealType,
           loggedDate,
         }),
@@ -119,7 +151,7 @@ export default function FoodLogForm({ mode, foodId, foodName, initialUpc, foodNu
   };
 
   if (mode === "log") {
-    const s = parseFloat(servings) || 0;
+    const s = calculateServings();
 
     return (
       <form onSubmit={handleLogFood} class="space-y-4">
@@ -135,7 +167,7 @@ export default function FoodLogForm({ mode, foodId, foodName, initialUpc, foodNu
               Nutrition Facts
             </h4>
             <p class="text-sm text-gray-500 border-b border-gray-300 pb-2 mb-2">
-              {s !== 1 ? `${servings} servings` : "1 serving"}{" "}
+              {s !== 1 ? `${s.toFixed(2)} servings` : "1 serving"}{" "}
               ({Math.round(s * foodNutrition.servingSizeValue)}{foodNutrition.servingSizeUnit})
             </p>
             <div class="text-sm space-y-1">
@@ -175,17 +207,38 @@ export default function FoodLogForm({ mode, foodId, foodName, initialUpc, foodNu
           </div>
         )}
 
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700">Servings</label>
+            <label class="block text-sm font-medium text-gray-700">Amount</label>
             <input
               type="number"
-              step="0.25"
-              min="0.25"
+              step={amountUnit === "servings" ? "0.25" : "any"}
+              min={amountUnit === "servings" ? "0.25" : "0.01"}
               value={servings}
               onInput={(e) => setServings((e.target as HTMLInputElement).value)}
               class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
             />
+            {amountUnit !== "servings" && (
+              <p class="text-xs text-gray-500 mt-1">
+                = {calculateServings().toFixed(2)} servings
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Unit</label>
+            <select
+              value={amountUnit}
+              onChange={(e) => handleUnitChange((e.target as HTMLSelectElement).value as "servings" | "g" | "ml")}
+              class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+            >
+              <option value="servings">servings</option>
+              {foodNutrition && foodNutrition.servingSizeValue > 0 && (
+                <option value={foodNutrition.servingSizeUnit}>
+                  {foodNutrition.servingSizeUnit === "g" ? "grams (g)" : "milliliters (ml)"}
+                </option>
+              )}
+            </select>
           </div>
 
           <div>
