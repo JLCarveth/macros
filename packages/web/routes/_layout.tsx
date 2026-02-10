@@ -129,10 +129,16 @@ export default function Layout({ Component, state }: PageProps) {
       </main>
 
       <footer class="bg-white border-t border-gray-200 py-4">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <p class="text-center text-sm text-gray-500">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2">
+          <p class="text-sm text-gray-500">
             Nutrition Llama - Track your nutrition with AI
           </p>
+          <a
+            href="/privacy"
+            class="text-sm text-gray-500 hover:text-primary-600"
+          >
+            Privacy Policy
+          </a>
         </div>
       </footer>
     </div>
