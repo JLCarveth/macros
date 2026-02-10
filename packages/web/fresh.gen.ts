@@ -11,6 +11,7 @@ import * as $api_auth_login from "./routes/api/auth/login.ts";
 import * as $api_auth_logout from "./routes/api/auth/logout.ts";
 import * as $api_auth_refresh from "./routes/api/auth/refresh.ts";
 import * as $api_auth_register from "./routes/api/auth/register.ts";
+import * as $api_event from "./routes/api/event.ts";
 import * as $api_foods_id_ from "./routes/api/foods/[id].ts";
 import * as $api_foods_index from "./routes/api/foods/index.ts";
 import * as $api_foods_search from "./routes/api/foods/search.ts";
@@ -23,6 +24,7 @@ import * as $foods_id_ from "./routes/foods/[id].tsx";
 import * as $foods_index from "./routes/foods/index.tsx";
 import * as $foods_new from "./routes/foods/new.tsx";
 import * as $index from "./routes/index.tsx";
+import * as $js_script_js from "./routes/js/script.js.ts";
 import * as $log_date_ from "./routes/log/[date].tsx";
 import * as $log_index from "./routes/log/index.tsx";
 import * as $login from "./routes/login.tsx";
@@ -52,6 +54,7 @@ const manifest = {
     "./routes/api/auth/logout.ts": $api_auth_logout,
     "./routes/api/auth/refresh.ts": $api_auth_refresh,
     "./routes/api/auth/register.ts": $api_auth_register,
+    "./routes/api/event.ts": $api_event,
     "./routes/api/foods/[id].ts": $api_foods_id_,
     "./routes/api/foods/index.ts": $api_foods_index,
     "./routes/api/foods/search.ts": $api_foods_search,
@@ -64,6 +67,7 @@ const manifest = {
     "./routes/foods/index.tsx": $foods_index,
     "./routes/foods/new.tsx": $foods_new,
     "./routes/index.tsx": $index,
+    "./routes/js/script.js.ts": $js_script_js,
     "./routes/log/[date].tsx": $log_date_,
     "./routes/log/index.tsx": $log_index,
     "./routes/login.tsx": $login,
