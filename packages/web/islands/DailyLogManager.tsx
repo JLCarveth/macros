@@ -1,6 +1,7 @@
 import { useState, useEffect } from "preact/hooks";
 import type { DailySummary, MealType, NutritionRecordWithSource, FoodLogEntryWithNutrition } from "@nutrition-llama/shared";
 import FoodSearch from "./FoodSearch.tsx";
+import { trackEvent } from "../utils/analytics.ts";
 
 interface DailyLogManagerProps {
   date: string;
@@ -144,6 +145,7 @@ export default function DailyLogManager({ date, initialSummary }: DailyLogManage
       }
 
       // Reset form and refresh
+      trackEvent("Log_Food", { meal_type: mealType });
       setShowAddForm(false);
       setSelectedFood(null);
       setServings("1");

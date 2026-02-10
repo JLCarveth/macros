@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, lazy, Suspense } from "preact/compat";
 import type { NutritionData } from "@nutrition-llama/shared";
 import ImageCropper from "./ImageCropper.tsx";
+import { trackEvent } from "../utils/analytics.ts";
 
 // Lazy load BarcodeScanner to prevent zxing-wasm from blocking hydration
 const BarcodeScanner = lazy(() => import("./BarcodeScanner.tsx"));
@@ -141,6 +142,7 @@ export default function CameraCapture({ initialUpc }: CameraCaptureProps) {
 
       const result = await analyzeResponse.json();
       setAnalysisResult(result);
+      trackEvent("Scan_Label", { method: "camera" });
       setState("results");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Analysis failed. Please try again.");
@@ -197,6 +199,7 @@ export default function CameraCapture({ initialUpc }: CameraCaptureProps) {
       }
 
       // Redirect to foods list
+      trackEvent("Save_Food");
       window.location.href = "/foods";
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save food");

@@ -1,5 +1,6 @@
 import { useState, lazy, Suspense } from "preact/compat";
 import type { MealType } from "@nutrition-llama/shared";
+import { trackEvent } from "../utils/analytics.ts";
 
 // Lazy load BarcodeScanner to prevent zxing-wasm from blocking hydration
 const BarcodeScanner = lazy(() => import("./BarcodeScanner.tsx"));
@@ -142,6 +143,7 @@ export default function FoodLogForm({ mode, foodId, foodName, initialUpc, foodNu
         throw new Error(data.error || "Failed to log food");
       }
 
+      trackEvent("Log_Food", { meal_type: mealType });
       window.location.href = `/log/${loggedDate}`;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to log food");

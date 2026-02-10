@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "preact/hooks";
 import type { NutritionRecordWithSource } from "@nutrition-llama/shared";
+import { trackEvent } from "../utils/analytics.ts";
 
 type Source = "all" | "user" | "system";
 
@@ -110,6 +111,7 @@ export default function FoodSearch({ onSelect, placeholder = "Search foods..." }
   };
 
   const handleSelect = (food: NutritionRecordWithSource) => {
+    trackEvent("Search_Food", { source });
     onSelect(food);
     setQuery("");
     setIsOpen(false);

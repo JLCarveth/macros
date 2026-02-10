@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { detectBarcodesFromVideo } from "../utils/barcode.ts";
+import { trackEvent } from "../utils/analytics.ts";
 
 interface BarcodeScannerProps {
   onScan: (code: string) => void;
@@ -63,6 +64,7 @@ export default function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps)
 
           if (results.length > 0) {
             const code = results[0];
+            trackEvent("UPC_Lookup");
             triggerHaptic();
             setDetected(true);
 

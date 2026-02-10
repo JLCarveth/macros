@@ -1,4 +1,5 @@
 import { useState } from "preact/hooks";
+import { trackEvent } from "../utils/analytics.ts";
 
 export default function LoginForm() {
   const [email, setEmail] = useState("");
@@ -26,6 +27,7 @@ export default function LoginForm() {
       }
 
       // Redirect to dashboard on success
+      trackEvent("Login");
       window.location.href = "/dashboard";
     } catch (err) {
       setError("An error occurred. Please try again.");
