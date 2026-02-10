@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, lazy, Suspense } from "preact/compat";
+import { useState, useRef, lazy, Suspense } from "preact/compat";
 import type { NutritionData } from "@nutrition-llama/shared";
 import ImageCropper from "./ImageCropper.tsx";
 import { trackEvent } from "../utils/analytics.ts";
@@ -6,7 +6,7 @@ import { trackEvent } from "../utils/analytics.ts";
 // Lazy load BarcodeScanner to prevent zxing-wasm from blocking hydration
 const BarcodeScanner = lazy(() => import("./BarcodeScanner.tsx"));
 
-type CaptureState = "idle" | "camera" | "preview" | "cropping" | "analyzing" | "results" | "saving";
+type CaptureState = "idle" | "preview" | "cropping" | "analyzing" | "results" | "saving";
 
 interface AnalysisResult extends NutritionData {
   name?: string;
@@ -26,91 +26,36 @@ export default function CameraCapture({ initialUpc }: CameraCaptureProps) {
   const [saving, setSaving] = useState(false);
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
 
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Cleanup camera stream on unmount
-  useEffect(() => {
-    return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-      }
-    };
-  }, []);
+  const handleFileSelect = (e: Event) => {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
 
-  // Attach stream to video element when in camera state
-  useEffect(() => {
-    if (state === "camera" && streamRef.current && videoRef.current) {
-      const video = videoRef.current;
-      video.srcObject = streamRef.current;
-
-      video.onloadedmetadata = () => {
-        console.log("Video metadata loaded. Dimensions:", video.videoWidth, "x", video.videoHeight);
-        video.play().then(() => {
-          console.log("Video playing. Current dimensions:", video.videoWidth, "x", video.videoHeight);
-        }).catch((err) => {
-          console.error("Play error:", err);
-        });
-      };
-
-      video.onerror = (e) => {
-        console.error("Video error event:", e);
-      };
-    }
-  }, [state]);
-
-  const startCamera = async () => {
     setError("");
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
-      });
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCapturedImage(reader.result as string);
+      setState("preview");
+    };
+    reader.onerror = () => {
+      setError("Failed to read the selected image.");
+    };
+    reader.readAsDataURL(file);
 
-      // Debug: log stream info
-      const videoTrack = stream.getVideoTracks()[0];
-      console.log("Stream obtained:", stream.id);
-      console.log("Video track:", videoTrack?.label, "enabled:", videoTrack?.enabled, "readyState:", videoTrack?.readyState);
-      console.log("Track settings:", JSON.stringify(videoTrack?.getSettings()));
-
-      streamRef.current = stream;
-      // Set state first so the video element renders
-      setState("camera");
-    } catch (err) {
-      setError("Could not access camera. Please ensure camera permissions are granted.");
-      console.error("Camera error:", err);
-    }
+    // Reset input so the same file can be re-selected
+    input.value = "";
   };
 
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-  };
-
-  const captureImage = () => {
-    if (!videoRef.current || !canvasRef.current) return;
-
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    ctx.drawImage(video, 0, 0);
-    const imageData = canvas.toDataURL("image/jpeg", 0.9);
-    setCapturedImage(imageData);
-    stopCamera();
-    setState("preview");
+  const chooseImage = () => {
+    fileInputRef.current?.click();
   };
 
   const retakePhoto = () => {
     setCapturedImage(null);
     setAnalysisResult(null);
-    startCamera();
+    chooseImage();
   };
 
   const analyzeImage = async (imageToAnalyze?: string) => {
@@ -215,7 +160,6 @@ export default function CameraCapture({ initialUpc }: CameraCaptureProps) {
     setUpcCode("");
     setError("");
     setState("idle");
-    stopCamera();
   };
 
   return (
@@ -226,53 +170,28 @@ export default function CameraCapture({ initialUpc }: CameraCaptureProps) {
         </div>
       )}
 
-      {/* Hidden canvas for capturing */}
-      <canvas ref={canvasRef} class="hidden" />
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFileSelect}
+        class="hidden"
+      />
 
       {/* Idle State */}
       {state === "idle" && (
         <div class="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
           <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
-          <p class="mt-4 text-gray-600">Take a photo of a nutrition facts label</p>
+          <p class="mt-4 text-gray-600">Take a photo or upload an image of a nutrition facts label</p>
           <button
-            onClick={startCamera}
+            onClick={chooseImage}
             class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
           >
-            Open Camera
+            Choose Image
           </button>
-        </div>
-      )}
-
-      {/* Camera View */}
-      {state === "camera" && (
-        <div class="space-y-4">
-          <div class="relative bg-black rounded-lg overflow-hidden aspect-video">
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              class="w-full h-full object-cover"
-            />
-            <div class="absolute inset-0 border-4 border-white/30 m-8 rounded pointer-events-none" />
-          </div>
-          <div class="flex justify-center gap-4">
-            <button
-              onClick={() => { stopCamera(); setState("idle"); }}
-              class="px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={captureImage}
-              class="px-6 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
-            >
-              Capture
-            </button>
-          </div>
         </div>
       )}
 

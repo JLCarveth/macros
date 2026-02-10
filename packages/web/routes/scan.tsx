@@ -38,7 +38,7 @@ export default function ScanPage({ data }: PageProps<ScanData>) {
         <div class="mb-8">
           <h1 class="text-2xl font-bold text-gray-900">Scan Nutrition Label</h1>
           <p class="text-gray-600">
-            Take a photo of a nutrition label to extract the information automatically.
+            Take a photo or upload an image of a nutrition label to extract the information automatically.
           </p>
         </div>
 
