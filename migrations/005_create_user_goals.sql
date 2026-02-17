@@ -1,0 +1,10 @@
+CREATE TABLE IF NOT EXISTS user_goals (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    calories INTEGER NOT NULL,
+    protein_g INTEGER NOT NULL,
+    carbs_g INTEGER NOT NULL,
+    fat_g INTEGER NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);

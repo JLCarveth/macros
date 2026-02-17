@@ -1,12 +1,14 @@
 import { Head } from "$fresh/runtime.ts";
 import { Handlers, PageProps } from "$fresh/server.ts";
 import { requireAuth } from "../utils/auth.ts";
-import type { User, DailySummary } from "@nutrition-llama/shared";
-import { getDailySummary } from "../utils/db.ts";
+import type { User, DailySummary, UserGoals } from "@nutrition-llama/shared";
+import { getDailySummary, getUserGoals } from "../utils/db.ts";
+import MacroProgressBar from "../islands/MacroProgressBar.tsx";
 
 interface DashboardData {
   user: User;
   summary: DailySummary | null;
+  goals: UserGoals | null;
 }
 
 export const handler: Handlers<DashboardData> = {
@@ -17,17 +19,21 @@ export const handler: Handlers<DashboardData> = {
     }
 
     const today = new Date().toISOString().split("T")[0];
-    const summary = await getDailySummary(authResult.user!.id, today);
+    const [summary, goals] = await Promise.all([
+      getDailySummary(authResult.user!.id, today),
+      getUserGoals(authResult.user!.id),
+    ]);
 
     return ctx.render({
       user: authResult.user!,
       summary,
+      goals,
     });
   },
 };
 
 export default function Dashboard({ data }: PageProps<DashboardData>) {
-  const { user, summary } = data;
+  const { user, summary, goals } = data;
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
     year: "numeric",
@@ -112,6 +118,62 @@ export default function Dashboard({ data }: PageProps<DashboardData>) {
             </div>
           </a>
         </div>
+
+        {/* Goals Progress */}
+        {goals ? (
+          <div class="bg-white shadow rounded-lg p-6 mb-8">
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="text-xl font-semibold text-gray-900">Daily Progress</h2>
+              <a href="/goals" class="text-sm text-primary-600 hover:text-primary-700 font-medium">
+                Edit Goals
+              </a>
+            </div>
+            <div class="space-y-4">
+              <MacroProgressBar
+                label="Calories"
+                current={summary?.totalCalories || 0}
+                target={goals.calories}
+                color="gray"
+                unit="cal"
+              />
+              <MacroProgressBar
+                label="Protein"
+                current={summary?.totalProtein || 0}
+                target={goals.proteinG}
+                color="red"
+              />
+              <MacroProgressBar
+                label="Carbs"
+                current={summary?.totalCarbohydrates || 0}
+                target={goals.carbsG}
+                color="yellow"
+              />
+              <MacroProgressBar
+                label="Fat"
+                current={summary?.totalFat || 0}
+                target={goals.fatG}
+                color="blue"
+              />
+            </div>
+          </div>
+        ) : (
+          <div class="bg-primary-50 border border-primary-200 rounded-lg p-6 mb-8">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="text-lg font-medium text-primary-900">Set Your Nutrition Goals</h3>
+                <p class="text-sm text-primary-700 mt-1">
+                  Track your daily progress by setting calorie and macro targets.
+                </p>
+              </div>
+              <a
+                href="/goals"
+                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
+              >
+                Set Goals
+              </a>
+            </div>
+          </div>
+        )}
 
         {/* Daily Summary */}
         <div class="bg-white shadow rounded-lg p-6">

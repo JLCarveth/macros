@@ -6,6 +6,7 @@ import postgres from "npm:postgres";
 import type {
   User,
   UserWithPassword,
+  UserGoals,
   NutritionRecord,
   NutritionRecordWithSource,
   CreateNutritionRecordInput,
@@ -80,6 +81,59 @@ export async function getUserById(id: string): Promise<User | null> {
     id: row.id,
     email: row.email,
     displayName: row.display_name,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+// ============ USER GOALS FUNCTIONS ============
+
+export async function getUserGoals(userId: string): Promise<UserGoals | null> {
+  const [row] = await sql`
+    SELECT id, user_id, calories, protein_g, carbs_g, fat_g, created_at, updated_at
+    FROM user_goals WHERE user_id = ${userId}
+  `;
+
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    userId: row.user_id,
+    calories: row.calories,
+    proteinG: row.protein_g,
+    carbsG: row.carbs_g,
+    fatG: row.fat_g,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export async function upsertUserGoals(
+  userId: string,
+  goals: { calories: number; proteinG: number; carbsG: number; fatG: number }
+): Promise<UserGoals> {
+  const [row] = await sql`
+    INSERT INTO user_goals (user_id, calories, protein_g, carbs_g, fat_g)
+    VALUES (${userId}, ${goals.calories}, ${goals.proteinG}, ${goals.carbsG}, ${goals.fatG})
+    ON CONFLICT (user_id)
+    DO UPDATE SET
+      calories = ${goals.calories},
+      protein_g = ${goals.proteinG},
+      carbs_g = ${goals.carbsG},
+      fat_g = ${goals.fatG},
+      updated_at = NOW()
+    RETURNING id, user_id, calories, protein_g, carbs_g, fat_g, created_at, updated_at
+  `;
+
+  if (!row) throw new Error("Failed to upsert user goals");
+
+  return {
+    id: row.id,
+    userId: row.user_id,
+    calories: row.calories,
+    proteinG: row.protein_g,
+    carbsG: row.carbs_g,
+    fatG: row.fat_g,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

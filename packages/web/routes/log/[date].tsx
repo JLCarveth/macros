@@ -1,14 +1,15 @@
 import { Head } from "$fresh/runtime.ts";
 import { Handlers, PageProps } from "$fresh/server.ts";
 import { requireAuth } from "../../utils/auth.ts";
-import type { User, DailySummary } from "@nutrition-llama/shared";
-import { getDailySummary } from "../../utils/db.ts";
+import type { User, DailySummary, UserGoals } from "@nutrition-llama/shared";
+import { getDailySummary, getUserGoals } from "../../utils/db.ts";
 import DailyLogManager from "../../islands/DailyLogManager.tsx";
 
 interface LogData {
   user: User;
   date: string;
   summary: DailySummary | null;
+  goals: UserGoals | null;
 }
 
 export const handler: Handlers<LogData> = {
@@ -25,12 +26,16 @@ export const handler: Handlers<LogData> = {
       return new Response("Invalid date format", { status: 400 });
     }
 
-    const summary = await getDailySummary(authResult.user!.id, date);
+    const [summary, goals] = await Promise.all([
+      getDailySummary(authResult.user!.id, date),
+      getUserGoals(authResult.user!.id),
+    ]);
 
     return ctx.render({
       user: authResult.user!,
       date,
       summary,
+      goals,
     });
   },
 };
@@ -88,7 +93,7 @@ export default function LogDatePage({ data }: PageProps<LogData>) {
           </a>
         </div>
 
-        <DailyLogManager date={date} initialSummary={summary} />
+        <DailyLogManager date={date} initialSummary={summary} goals={data.goals} />
       </div>
     </>
   );

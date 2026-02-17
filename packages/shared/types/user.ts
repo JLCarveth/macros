@@ -45,3 +45,14 @@ export interface RefreshToken {
   createdAt: Date;
   revokedAt: Date | null;
 }
+
+export interface UserGoals {
+  id: string;
+  userId: string;
+  calories: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  createdAt: Date;
+  updatedAt: Date;
+}

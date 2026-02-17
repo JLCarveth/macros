@@ -1,11 +1,13 @@
 import { useState, useEffect } from "preact/hooks";
-import type { DailySummary, MealType, NutritionRecordWithSource, FoodLogEntryWithNutrition } from "@nutrition-llama/shared";
+import type { DailySummary, MealType, NutritionRecordWithSource, FoodLogEntryWithNutrition, UserGoals } from "@nutrition-llama/shared";
 import FoodSearch from "./FoodSearch.tsx";
+import MacroProgressBar from "./MacroProgressBar.tsx";
 import { trackEvent } from "../utils/analytics.ts";
 
 interface DailyLogManagerProps {
   date: string;
   initialSummary: DailySummary | null;
+  goals?: UserGoals | null;
 }
 
 // Calculate calories from macros: protein=4cal/g, carbs=4cal/g, fat=9cal/g
@@ -49,7 +51,7 @@ const MEAL_CONFIG = {
   },
 } as const;
 
-export default function DailyLogManager({ date, initialSummary }: DailyLogManagerProps) {
+export default function DailyLogManager({ date, initialSummary, goals }: DailyLogManagerProps) {
   const [summary, setSummary] = useState<DailySummary | null>(initialSummary);
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedFood, setSelectedFood] = useState<NutritionRecordWithSource | null>(null);
@@ -292,6 +294,45 @@ export default function DailyLogManager({ date, initialSummary }: DailyLogManage
               </svg>
             </div>
             <p class="text-3xl font-bold text-blue-600">{Math.round(summary.totalFat || 0)}g</p>
+          </div>
+        </div>
+      )}
+
+      {/* Goals Progress Bars */}
+      {goals && summary && (
+        <div class="bg-white shadow-sm rounded-lg border border-gray-200 p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-base font-semibold text-gray-900">Goal Progress</h3>
+            <a href="/goals" class="text-sm text-primary-600 hover:text-primary-700 font-medium">
+              Edit
+            </a>
+          </div>
+          <div class="space-y-4">
+            <MacroProgressBar
+              label="Calories"
+              current={summary.totalCalories || 0}
+              target={goals.calories}
+              color="gray"
+              unit="cal"
+            />
+            <MacroProgressBar
+              label="Protein"
+              current={summary.totalProtein || 0}
+              target={goals.proteinG}
+              color="red"
+            />
+            <MacroProgressBar
+              label="Carbs"
+              current={summary.totalCarbohydrates || 0}
+              target={goals.carbsG}
+              color="yellow"
+            />
+            <MacroProgressBar
+              label="Fat"
+              current={summary.totalFat || 0}
+              target={goals.fatG}
+              color="blue"
+            />
           </div>
         </div>
       )}
