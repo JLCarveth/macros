@@ -16,6 +16,7 @@ import * as $api_foods_id_ from "./routes/api/foods/[id].ts";
 import * as $api_foods_index from "./routes/api/foods/index.ts";
 import * as $api_foods_search from "./routes/api/foods/search.ts";
 import * as $api_foods_upc_code_ from "./routes/api/foods/upc/[code].ts";
+import * as $api_goals from "./routes/api/goals.ts";
 import * as $api_log_id_ from "./routes/api/log/[id].ts";
 import * as $api_log_daily from "./routes/api/log/daily.ts";
 import * as $api_log_index from "./routes/api/log/index.ts";
@@ -23,11 +24,13 @@ import * as $dashboard from "./routes/dashboard.tsx";
 import * as $foods_id_ from "./routes/foods/[id].tsx";
 import * as $foods_index from "./routes/foods/index.tsx";
 import * as $foods_new from "./routes/foods/new.tsx";
+import * as $goals from "./routes/goals.tsx";
 import * as $index from "./routes/index.tsx";
 import * as $js_script_js from "./routes/js/script.js.ts";
 import * as $log_date_ from "./routes/log/[date].tsx";
 import * as $log_index from "./routes/log/index.tsx";
 import * as $login from "./routes/login.tsx";
+import * as $privacy from "./routes/privacy.tsx";
 import * as $register from "./routes/register.tsx";
 import * as $scan from "./routes/scan.tsx";
 import * as $upc from "./routes/upc.tsx";
@@ -37,8 +40,10 @@ import * as $DailyLogManager from "./islands/DailyLogManager.tsx";
 import * as $FoodBrowser from "./islands/FoodBrowser.tsx";
 import * as $FoodLogForm from "./islands/FoodLogForm.tsx";
 import * as $FoodSearch from "./islands/FoodSearch.tsx";
+import * as $GoalSetup from "./islands/GoalSetup.tsx";
 import * as $ImageCropper from "./islands/ImageCropper.tsx";
 import * as $LoginForm from "./islands/LoginForm.tsx";
+import * as $MacroProgressBar from "./islands/MacroProgressBar.tsx";
 import * as $RegisterForm from "./islands/RegisterForm.tsx";
 import * as $UpcLookup from "./islands/UpcLookup.tsx";
 import type { Manifest } from "$fresh/server.ts";
@@ -59,6 +64,7 @@ const manifest = {
     "./routes/api/foods/index.ts": $api_foods_index,
     "./routes/api/foods/search.ts": $api_foods_search,
     "./routes/api/foods/upc/[code].ts": $api_foods_upc_code_,
+    "./routes/api/goals.ts": $api_goals,
     "./routes/api/log/[id].ts": $api_log_id_,
     "./routes/api/log/daily.ts": $api_log_daily,
     "./routes/api/log/index.ts": $api_log_index,
@@ -66,11 +72,13 @@ const manifest = {
     "./routes/foods/[id].tsx": $foods_id_,
     "./routes/foods/index.tsx": $foods_index,
     "./routes/foods/new.tsx": $foods_new,
+    "./routes/goals.tsx": $goals,
     "./routes/index.tsx": $index,
     "./routes/js/script.js.ts": $js_script_js,
     "./routes/log/[date].tsx": $log_date_,
     "./routes/log/index.tsx": $log_index,
     "./routes/login.tsx": $login,
+    "./routes/privacy.tsx": $privacy,
     "./routes/register.tsx": $register,
     "./routes/scan.tsx": $scan,
     "./routes/upc.tsx": $upc,
@@ -82,8 +90,10 @@ const manifest = {
     "./islands/FoodBrowser.tsx": $FoodBrowser,
     "./islands/FoodLogForm.tsx": $FoodLogForm,
     "./islands/FoodSearch.tsx": $FoodSearch,
+    "./islands/GoalSetup.tsx": $GoalSetup,
     "./islands/ImageCropper.tsx": $ImageCropper,
     "./islands/LoginForm.tsx": $LoginForm,
+    "./islands/MacroProgressBar.tsx": $MacroProgressBar,
     "./islands/RegisterForm.tsx": $RegisterForm,
     "./islands/UpcLookup.tsx": $UpcLookup,
   },
