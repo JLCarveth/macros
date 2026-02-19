@@ -11,6 +11,7 @@ export default function App({ Component }: PageProps) {
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Nutrition Llama</title>
         <link rel="stylesheet" href="/styles.css" />
+        <script src="https://esm.sh/chart.js@4.4.7/dist/chart.umd.js" defer></script>
         {plausibleEnabled && (
           <script
             defer

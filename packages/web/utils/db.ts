@@ -15,6 +15,9 @@ import type {
   CreateFoodLogInput,
   DailySummary,
   MealType,
+  WeightLogEntry,
+  CreateWeightLogInput,
+  CalorieTrendPoint,
 } from "@nutrition-llama/shared";
 
 // Create connection with built-in pooling
@@ -620,4 +623,152 @@ export async function getDailySummary(
     totalCholesterol,
     entries,
   };
+}
+
+// ============ WEIGHT LOG FUNCTIONS ============
+
+export async function createWeightLogEntry(
+  userId: string,
+  input: CreateWeightLogInput
+): Promise<WeightLogEntry> {
+  const loggedDate = input.loggedDate ?? new Date().toISOString().split("T")[0];
+
+  const [row] = await sql`
+    INSERT INTO weight_log (user_id, logged_date, weight_kg, body_fat_pct)
+    VALUES (${userId}, ${loggedDate}, ${input.weightKg}, ${input.bodyFatPct ?? null})
+    ON CONFLICT (user_id, logged_date)
+    DO UPDATE SET
+      weight_kg = ${input.weightKg},
+      body_fat_pct = ${input.bodyFatPct ?? null}
+    RETURNING *
+  `;
+
+  if (!row) throw new Error("Failed to create weight log entry");
+
+  return {
+    id: row.id,
+    userId: row.user_id,
+    loggedDate: row.logged_date,
+    weightKg: Number(row.weight_kg),
+    bodyFatPct: row.body_fat_pct != null ? Number(row.body_fat_pct) : null,
+    createdAt: row.created_at,
+  };
+}
+
+export async function getWeightLog(
+  userId: string,
+  startDate: string,
+  endDate: string
+): Promise<WeightLogEntry[]> {
+  const rows = await sql`
+    SELECT * FROM weight_log
+    WHERE user_id = ${userId}
+      AND logged_date >= ${startDate}
+      AND logged_date <= ${endDate}
+    ORDER BY logged_date ASC
+  `;
+
+  return rows.map((row) => ({
+    id: row.id,
+    userId: row.user_id,
+    loggedDate: row.logged_date,
+    weightKg: Number(row.weight_kg),
+    bodyFatPct: row.body_fat_pct != null ? Number(row.body_fat_pct) : null,
+    createdAt: row.created_at,
+  }));
+}
+
+export async function deleteWeightLogEntry(
+  id: string,
+  userId: string
+): Promise<boolean> {
+  await sql`
+    DELETE FROM weight_log WHERE id = ${id} AND user_id = ${userId}
+  `;
+  return true;
+}
+
+// ============ TREND FUNCTIONS ============
+
+export async function getCalorieTrend(
+  userId: string,
+  startDate: string,
+  endDate: string
+): Promise<CalorieTrendPoint[]> {
+  const rows = await sql`
+    SELECT
+      fl.logged_date as date,
+      SUM(nr.calories * fl.servings)::int as total_calories
+    FROM food_log fl
+    JOIN nutrition_records nr ON fl.nutrition_record_id = nr.id
+    WHERE fl.user_id = ${userId}
+      AND fl.logged_date >= ${startDate}
+      AND fl.logged_date <= ${endDate}
+    GROUP BY fl.logged_date
+    ORDER BY fl.logged_date ASC
+  `;
+
+  return rows.map((row) => ({
+    date: row.date,
+    totalCalories: Number(row.total_calories),
+  }));
+}
+
+export async function getLoggingStreak(
+  userId: string
+): Promise<{ currentStreak: number; longestStreak: number }> {
+  const rows = await sql`
+    SELECT DISTINCT logged_date
+    FROM food_log
+    WHERE user_id = ${userId}
+    ORDER BY logged_date DESC
+  `;
+
+  if (rows.length === 0) {
+    return { currentStreak: 0, longestStreak: 0 };
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const dates = rows.map((row) => {
+    const d = new Date(row.logged_date);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  });
+
+  const oneDay = 24 * 60 * 60 * 1000;
+
+  // Current streak: count consecutive days from today (or yesterday)
+  let currentStreak = 0;
+  const diffFromToday = (today.getTime() - dates[0]) / oneDay;
+  if (diffFromToday <= 1) {
+    // Started today or yesterday
+    currentStreak = 1;
+    for (let i = 1; i < dates.length; i++) {
+      const diff = (dates[i - 1] - dates[i]) / oneDay;
+      if (diff === 1) {
+        currentStreak++;
+      } else {
+        break;
+      }
+    }
+  }
+
+  // Longest streak
+  let longestStreak = 1;
+  let streak = 1;
+  for (let i = 1; i < dates.length; i++) {
+    const diff = (dates[i - 1] - dates[i]) / oneDay;
+    if (diff === 1) {
+      streak++;
+      if (streak > longestStreak) longestStreak = streak;
+    } else {
+      streak = 1;
+    }
+  }
+
+  if (dates.length === 0) longestStreak = 0;
+
+  return { currentStreak, longestStreak };
 }
