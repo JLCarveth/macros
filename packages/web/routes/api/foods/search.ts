@@ -1,6 +1,6 @@
 import { Handlers } from "$fresh/server.ts";
 import { getCookie, verifyAccessToken } from "../../../utils/auth.ts";
-import { searchFoods, countFoods, getUserFoods } from "../../../utils/db.ts";
+import { searchFoods, countFoods, getUserFoods, searchCommunityFoods, countCommunityFoods } from "../../../utils/db.ts";
 
 export const handler: Handlers = {
   // GET /api/foods/search?q=chicken&source=all&limit=20
@@ -24,20 +24,27 @@ export const handler: Handlers = {
     try {
       const url = new URL(req.url);
       const q = url.searchParams.get("q")?.trim() || "";
-      const source = (url.searchParams.get("source") || "all") as "all" | "user" | "system";
+      const source = (url.searchParams.get("source") || "all") as "all" | "user" | "system" | "community";
       const limit = Math.min(Math.max(parseInt(url.searchParams.get("limit") || "20"), 1), 50);
 
       // Validate source parameter
-      if (!["all", "user", "system"].includes(source)) {
+      if (!["all", "user", "system", "community"].includes(source)) {
         return new Response(
-          JSON.stringify({ error: "source must be 'all', 'user', or 'system'" }),
+          JSON.stringify({ error: "source must be 'all', 'user', 'system', or 'community'" }),
           { status: 400, headers: { "Content-Type": "application/json" } }
         );
       }
 
       let results;
 
-      if (q.length < 2) {
+      if (source === "community") {
+        if (q.length < 2) {
+          results = [];
+        } else {
+          const communityResults = await searchCommunityFoods(q, limit);
+          results = communityResults.map((f) => ({ ...f, isSystem: false, isCommunity: true }));
+        }
+      } else if (q.length < 2) {
         // When query is empty or too short: show recent user foods for "all"/"user", nothing for "system"
         if (source === "system") {
           results = [];
@@ -46,18 +53,27 @@ export const handler: Handlers = {
           const userFoods = await getUserFoods(payload.userId);
           results = userFoods.slice(0, limit).map((f) => ({ ...f, isSystem: false }));
         }
+      } else if (source === "all") {
+        // For "all", search user+system foods and also community foods
+        const [mainResults, communityResults] = await Promise.all([
+          searchFoods(payload.userId, q, "all", limit),
+          searchCommunityFoods(q, limit),
+        ]);
+        const communityMapped = communityResults.map((f) => ({ ...f, isSystem: false, isCommunity: true }));
+        results = [...mainResults, ...communityMapped].slice(0, limit);
       } else {
         results = await searchFoods(payload.userId, q, source, limit);
       }
 
       // Get counts for tab badges
-      const [userCount, systemCount] = await Promise.all([
+      const [userCount, systemCount, communityCount] = await Promise.all([
         countFoods(payload.userId, "user"),
         countFoods(payload.userId, "system"),
+        countCommunityFoods(),
       ]);
 
       return new Response(
-        JSON.stringify({ results, counts: { user: userCount, system: systemCount } }),
+        JSON.stringify({ results, counts: { user: userCount, system: systemCount, community: communityCount } }),
         { status: 200, headers: { "Content-Type": "application/json" } }
       );
     } catch (error) {

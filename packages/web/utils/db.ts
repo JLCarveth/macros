@@ -18,6 +18,8 @@ import type {
   WeightLogEntry,
   CreateWeightLogInput,
   CalorieTrendPoint,
+  CommunityFood,
+  FoodSource,
 } from "@nutrition-llama/shared";
 
 // Create connection with built-in pooling
@@ -207,7 +209,7 @@ function mapNutritionRecord(row: Record<string, unknown>): NutritionRecord {
     cholesterol: row.cholesterol as number | null,
     sodium: row.sodium as number | null,
     upcCode: row.upc_code as string | null,
-    source: row.source as "manual" | "scan" | "api",
+    source: row.source as FoodSource,
     createdAt: row.created_at as Date,
   };
 }
@@ -347,7 +349,8 @@ export async function searchFoods(
   limit: number = 20
 ): Promise<NutritionRecordWithSource[]> {
   const systemUserId = await getSystemUserId();
-  const pattern = `%${query}%`;
+  const escaped = query.replace(/[%_\\]/g, "\\$&");
+  const pattern = `%${escaped}%`;
 
   let rows: Record<string, unknown>[];
 
@@ -436,6 +439,218 @@ export async function countFoods(
     `;
     return row?.count ?? 0;
   }
+}
+
+// ============ COMMUNITY FOOD FUNCTIONS ============
+
+function mapCommunityFood(row: Record<string, unknown>): CommunityFood {
+  return {
+    id: row.id as string,
+    name: row.name as string,
+    servingSizeValue: row.serving_size_value as number,
+    servingSizeUnit: row.serving_size_unit as "g" | "ml",
+    calories: row.calories as number,
+    totalFat: row.total_fat as number | null,
+    carbohydrates: row.carbohydrates as number | null,
+    fiber: row.fiber as number | null,
+    sugars: row.sugars as number | null,
+    protein: row.protein as number | null,
+    cholesterol: row.cholesterol as number | null,
+    sodium: row.sodium as number | null,
+    upcCode: row.upc_code as string,
+    contributedByUserId: row.contributed_by_user_id as string | null,
+    contributedByDisplayName: (row.contributor_display_name ?? row.display_name ?? null) as string | null,
+    offProductUrl: row.off_product_url as string | null,
+    verifiedCount: row.verified_count as number,
+    createdAt: row.created_at as Date,
+    updatedAt: row.updated_at as Date,
+  };
+}
+
+export async function getCommunityFoodByUpc(upcCode: string): Promise<CommunityFood | null> {
+  const [row] = await sql`
+    SELECT cf.*, u.display_name as contributor_display_name
+    FROM community_foods cf
+    LEFT JOIN users u ON cf.contributed_by_user_id = u.id
+    WHERE cf.upc_code = ${upcCode}
+  `;
+
+  if (!row) return null;
+  return mapCommunityFood(row);
+}
+
+export async function contributeCommunityFood(
+  userId: string,
+  input: CreateNutritionRecordInput & { offProductUrl?: string }
+): Promise<{ created: boolean; food: CommunityFood }> {
+  if (!input.upcCode) {
+    throw new Error("UPC code is required for community foods");
+  }
+
+  const upcCode = input.upcCode;
+
+  return await sql.begin(async (tx) => {
+    // Check if a community food already exists for this UPC
+    const [existing] = await tx`
+      SELECT id FROM community_foods WHERE upc_code = ${upcCode}
+    `;
+
+    if (!existing) {
+      // Path A: New UPC — insert into community_foods then add contribution.
+      // Use ON CONFLICT DO NOTHING to handle concurrent first-inserts gracefully.
+      const [foodRow] = await tx`
+        INSERT INTO community_foods (
+          name, serving_size_value, serving_size_unit, calories,
+          total_fat, carbohydrates, fiber, sugars, protein, cholesterol, sodium,
+          upc_code, contributed_by_user_id, off_product_url
+        )
+        VALUES (
+          ${input.name}, ${input.servingSizeValue}, ${input.servingSizeUnit},
+          ${input.calories}, ${input.totalFat ?? null}, ${input.carbohydrates ?? null},
+          ${input.fiber ?? null}, ${input.sugars ?? null}, ${input.protein ?? null},
+          ${input.cholesterol ?? null}, ${input.sodium ?? null},
+          ${upcCode}, ${userId}, ${input.offProductUrl ?? null}
+        )
+        ON CONFLICT (upc_code) DO NOTHING
+        RETURNING *
+      `;
+
+      if (!foodRow) {
+        // Race condition: another transaction inserted this UPC concurrently.
+        // Fall through to Path B.
+        return handleExistingUpc(tx, upcCode, userId, input);
+      }
+
+      // Record the contribution
+      await tx`
+        INSERT INTO community_food_contributions (
+          community_food_id, user_id, name,
+          serving_size_value, serving_size_unit, calories,
+          total_fat, carbohydrates, fiber, sugars, protein, cholesterol, sodium,
+          off_product_url
+        )
+        VALUES (
+          ${foodRow.id}, ${userId}, ${input.name},
+          ${input.servingSizeValue}, ${input.servingSizeUnit},
+          ${input.calories}, ${input.totalFat ?? null}, ${input.carbohydrates ?? null},
+          ${input.fiber ?? null}, ${input.sugars ?? null}, ${input.protein ?? null},
+          ${input.cholesterol ?? null}, ${input.sodium ?? null},
+          ${input.offProductUrl ?? null}
+        )
+      `;
+
+      return { created: true, food: mapCommunityFood(foodRow) };
+    }
+
+    // Path B: Existing UPC
+    return handleExistingUpc(tx, upcCode, userId, input);
+  });
+}
+
+async function handleExistingUpc(
+  tx: typeof sql,
+  upcCode: string,
+  userId: string,
+  input: CreateNutritionRecordInput & { offProductUrl?: string }
+): Promise<{ created: boolean; food: CommunityFood }> {
+  const [cfRow] = await tx`
+    SELECT id FROM community_foods WHERE upc_code = ${upcCode}
+  `;
+  const communityFoodId = cfRow.id as string;
+
+  // Insert contribution; ON CONFLICT DO NOTHING if this user already contributed
+  const [contributed] = await tx`
+    INSERT INTO community_food_contributions (
+      community_food_id, user_id, name,
+      serving_size_value, serving_size_unit, calories,
+      total_fat, carbohydrates, fiber, sugars, protein, cholesterol, sodium,
+      off_product_url
+    )
+    VALUES (
+      ${communityFoodId}, ${userId}, ${input.name},
+      ${input.servingSizeValue}, ${input.servingSizeUnit},
+      ${input.calories}, ${input.totalFat ?? null}, ${input.carbohydrates ?? null},
+      ${input.fiber ?? null}, ${input.sugars ?? null}, ${input.protein ?? null},
+      ${input.cholesterol ?? null}, ${input.sodium ?? null},
+      ${input.offProductUrl ?? null}
+    )
+    ON CONFLICT (community_food_id, user_id) DO NOTHING
+    RETURNING id
+  `;
+
+  if (!contributed) {
+    // User already contributed to this UPC — return existing food unchanged
+    const [row] = await tx`
+      SELECT cf.*, u.display_name as contributor_display_name
+      FROM community_foods cf
+      LEFT JOIN users u ON cf.contributed_by_user_id = u.id
+      WHERE cf.id = ${communityFoodId}
+    `;
+    return { created: false, food: mapCommunityFood(row) };
+  }
+
+  // Recompute canonical values from all contributions using median
+  const [medians] = await tx`
+    SELECT
+      PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY serving_size_value) AS median_serving_size_value,
+      PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY calories) AS median_calories,
+      PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY total_fat) AS median_total_fat,
+      PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY carbohydrates) AS median_carbohydrates,
+      PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY fiber) AS median_fiber,
+      PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY sugars) AS median_sugars,
+      PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY protein) AS median_protein,
+      PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY cholesterol) AS median_cholesterol,
+      PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY sodium) AS median_sodium,
+      COUNT(*)::int AS contribution_count
+    FROM community_food_contributions
+    WHERE community_food_id = ${communityFoodId}
+  `;
+
+  const [updatedRow] = await tx`
+    UPDATE community_foods SET
+      serving_size_value = ${medians.median_serving_size_value},
+      calories = ${medians.median_calories},
+      total_fat = ${medians.median_total_fat},
+      carbohydrates = ${medians.median_carbohydrates},
+      fiber = ${medians.median_fiber},
+      sugars = ${medians.median_sugars},
+      protein = ${medians.median_protein},
+      cholesterol = ${medians.median_cholesterol},
+      sodium = ${medians.median_sodium},
+      verified_count = ${medians.contribution_count}
+    WHERE id = ${communityFoodId}
+    RETURNING *, (
+      SELECT u.display_name FROM users u WHERE u.id = community_foods.contributed_by_user_id
+    ) AS contributor_display_name
+  `;
+
+  return { created: false, food: mapCommunityFood(updatedRow) };
+}
+
+export async function searchCommunityFoods(
+  query: string,
+  limit: number = 20
+): Promise<CommunityFood[]> {
+  const escaped = query.replace(/[%_\\]/g, "\\$&");
+  const pattern = `%${escaped}%`;
+
+  const rows = await sql`
+    SELECT cf.*, u.display_name as contributor_display_name
+    FROM community_foods cf
+    LEFT JOIN users u ON cf.contributed_by_user_id = u.id
+    WHERE cf.name ILIKE ${pattern}
+    ORDER BY cf.verified_count DESC, cf.name ASC
+    LIMIT ${limit}
+  `;
+
+  return rows.map(mapCommunityFood);
+}
+
+export async function countCommunityFoods(): Promise<number> {
+  const [row] = await sql`
+    SELECT COUNT(*)::int as count FROM community_foods
+  `;
+  return row?.count ?? 0;
 }
 
 // ============ FOOD LOG FUNCTIONS ============
@@ -583,7 +798,7 @@ export async function getDailySummary(
       cholesterol: row.cholesterol as number | null,
       sodium: row.sodium as number | null,
       upcCode: row.upc_code as string | null,
-      source: row.source as "manual" | "scan" | "api",
+      source: row.source as FoodSource,
       createdAt: row.food_created_at as Date,
     },
   }));
