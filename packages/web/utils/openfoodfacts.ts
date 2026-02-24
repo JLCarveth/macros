@@ -67,11 +67,23 @@ export async function lookupOffProduct(barcode: string): Promise<OffLookupResult
       return null;
     }
 
+    // Determine serving size unit: OFF provides serving_quantity_unit ("g", "ml", etc.)
+    // Fall back to inferring from the raw serving_quantity string (e.g. "240ml", "30 g")
+    // then default to "g".
+    const rawUnit = (product.serving_quantity_unit as string | undefined)?.toLowerCase().trim();
+    const servingSizeUnit: "g" | "ml" = rawUnit === "ml" ? "ml" : "g";
+
+    // Parse serving_quantity — OFF may return a bare number or a string like "30g" / "240 ml"
+    const parseServingQuantity = (val: unknown): number | null => {
+      if (val == null) return null;
+      const num = parseFloat(String(val));
+      return isNaN(num) ? null : num;
+    };
+
     // Determine serving size: prefer per-serving values when available
-    const hasServingData = nutriments["energy-kcal_serving"] != null && product.serving_quantity;
-    const servingSizeValue = hasServingData
-      ? Number(product.serving_quantity)
-      : 100;
+    const parsedServingQty = parseServingQuantity(product.serving_quantity);
+    const hasServingData = nutriments["energy-kcal_serving"] != null && parsedServingQty != null;
+    const servingSizeValue = hasServingData ? parsedServingQty! : 100;
     const suffix = hasServingData ? "_serving" : "_100g";
 
     // Helper to extract a nutrient value
@@ -90,18 +102,20 @@ export async function lookupOffProduct(barcode: string): Promise<OffLookupResult
     const sodiumG = n("sodium");
     const sodiumMg = sodiumG != null ? Math.round(sodiumG * 1000) : undefined;
 
+    const cholesterolG = n("cholesterol");
+
     const food: CreateNutritionRecordInput = {
       name: product.product_name || product.product_name_en || "Unknown Product",
       servingSizeValue,
-      servingSizeUnit: "g",
+      servingSizeUnit,
       calories,
       totalFat: n("fat"),
       carbohydrates: n("carbohydrates"),
       fiber: n("fiber"),
       sugars: n("sugars"),
       protein: n("proteins"),
-      cholesterol: n("cholesterol") != null
-        ? Math.round(n("cholesterol")! * 1000) // OFF stores in grams, app uses mg
+      cholesterol: cholesterolG != null
+        ? Math.round(cholesterolG * 1000) // OFF stores in grams, app uses mg
         : undefined,
       sodium: sodiumMg,
       upcCode: barcode,
