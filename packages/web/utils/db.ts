@@ -512,7 +512,9 @@ export async function contributeCommunityFood(
           ${upcCode}, ${userId}, ${input.offProductUrl ?? null}
         )
         ON CONFLICT (upc_code) DO NOTHING
-        RETURNING *
+        RETURNING *, (
+          SELECT u.display_name FROM users u WHERE u.id = community_foods.contributed_by_user_id
+        ) AS contributor_display_name
       `;
 
       if (!foodRow) {

@@ -45,3 +45,12 @@ SELECT
 FROM community_foods cf
 WHERE cf.contributed_by_user_id IS NOT NULL
 ON CONFLICT DO NOTHING;
+
+-- Foods whose original contributor was deleted (contributed_by_user_id IS NULL) cannot
+-- have a backfill row inserted (user_id is NOT NULL in contributions). Reset their
+-- verified_count to 0 so the contribution count stays in sync with the actual rows
+-- in community_food_contributions. The canonical nutrition values are preserved; they
+-- will be updated to median-based values once real contributions arrive.
+UPDATE community_foods
+SET verified_count = 0
+WHERE contributed_by_user_id IS NULL;
