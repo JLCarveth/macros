@@ -43,6 +43,23 @@ export default function NewFoodPage({ data }: PageProps<NewFoodData>) {
           <p class="text-gray-600">Enter nutrition information manually.</p>
         </div>
 
+        {!data.initialUpc && (
+          <div class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-3">
+            <svg class="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div class="flex-1 text-sm">
+              <p class="font-medium text-blue-800">Have a barcode?</p>
+              <p class="text-blue-700 mt-0.5">
+                Check if this food already exists in our database before entering it manually.{" "}
+                <a href="/upc" class="font-medium underline hover:text-blue-900">
+                  Scan barcode
+                </a>
+              </p>
+            </div>
+          </div>
+        )}
+
         <FoodLogForm mode="create" initialUpc={data.initialUpc} />
       </div>
     </>

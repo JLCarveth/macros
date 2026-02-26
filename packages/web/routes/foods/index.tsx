@@ -49,6 +49,12 @@ export default function FoodsPage({ data }: PageProps<FoodsData>) {
               Scan Label
             </a>
             <a
+              href="/upc"
+              class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+            >
+              Scan Barcode
+            </a>
+            <a
               href="/foods/new"
               class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
             >

@@ -53,6 +53,7 @@ export interface UserGoals {
   proteinG: number;
   carbsG: number;
   fatG: number;
+  goalWeightKg: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
