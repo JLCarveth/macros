@@ -95,7 +95,7 @@ export async function getUserById(id: string): Promise<User | null> {
 
 export async function getUserGoals(userId: string): Promise<UserGoals | null> {
   const [row] = await sql`
-    SELECT id, user_id, calories, protein_g, carbs_g, fat_g, created_at, updated_at
+    SELECT id, user_id, calories, protein_g, carbs_g, fat_g, goal_weight_kg, created_at, updated_at
     FROM user_goals WHERE user_id = ${userId}
   `;
 
@@ -108,6 +108,7 @@ export async function getUserGoals(userId: string): Promise<UserGoals | null> {
     proteinG: row.protein_g,
     carbsG: row.carbs_g,
     fatG: row.fat_g,
+    goalWeightKg: row.goal_weight_kg != null ? Number(row.goal_weight_kg) : null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -115,19 +116,20 @@ export async function getUserGoals(userId: string): Promise<UserGoals | null> {
 
 export async function upsertUserGoals(
   userId: string,
-  goals: { calories: number; proteinG: number; carbsG: number; fatG: number }
+  goals: { calories: number; proteinG: number; carbsG: number; fatG: number; goalWeightKg?: number | null }
 ): Promise<UserGoals> {
   const [row] = await sql`
-    INSERT INTO user_goals (user_id, calories, protein_g, carbs_g, fat_g)
-    VALUES (${userId}, ${goals.calories}, ${goals.proteinG}, ${goals.carbsG}, ${goals.fatG})
+    INSERT INTO user_goals (user_id, calories, protein_g, carbs_g, fat_g, goal_weight_kg)
+    VALUES (${userId}, ${goals.calories}, ${goals.proteinG}, ${goals.carbsG}, ${goals.fatG}, ${goals.goalWeightKg ?? null})
     ON CONFLICT (user_id)
     DO UPDATE SET
       calories = ${goals.calories},
       protein_g = ${goals.proteinG},
       carbs_g = ${goals.carbsG},
       fat_g = ${goals.fatG},
+      goal_weight_kg = ${goals.goalWeightKg ?? null},
       updated_at = NOW()
-    RETURNING id, user_id, calories, protein_g, carbs_g, fat_g, created_at, updated_at
+    RETURNING id, user_id, calories, protein_g, carbs_g, fat_g, goal_weight_kg, created_at, updated_at
   `;
 
   if (!row) throw new Error("Failed to upsert user goals");
@@ -139,6 +141,7 @@ export async function upsertUserGoals(
     proteinG: row.protein_g,
     carbsG: row.carbs_g,
     fatG: row.fat_g,
+    goalWeightKg: row.goal_weight_kg != null ? Number(row.goal_weight_kg) : null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

@@ -44,7 +44,7 @@ function calculateMacros(tdee: number) {
 }
 
 export default function GoalSetup({ existingGoals }: GoalSetupProps) {
-  const [mode, setMode] = useState<Mode>("calculator");
+  const [mode, setMode] = useState<Mode>(existingGoals ? "manual" : "calculator");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -62,6 +62,28 @@ export default function GoalSetup({ existingGoals }: GoalSetupProps) {
   const [proteinG, setProteinG] = useState(existingGoals?.proteinG?.toString() || "");
   const [carbsG, setCarbsG] = useState(existingGoals?.carbsG?.toString() || "");
   const [fatG, setFatG] = useState(existingGoals?.fatG?.toString() || "");
+
+  // Goal weight (stored in kg, displayed in user's chosen unit)
+  const [goalWeightUnit, setGoalWeightUnit] = useState<WeightUnit>("lbs");
+  const [goalWeight, setGoalWeight] = useState(() =>
+    existingGoals?.goalWeightKg != null
+      ? (existingGoals.goalWeightKg * 2.20462).toFixed(1)
+      : ""
+  );
+
+  const handleGoalWeightUnitChange = (newUnit: WeightUnit) => {
+    if (goalWeight) {
+      const val = parseFloat(goalWeight);
+      if (!isNaN(val)) {
+        if (newUnit === "kg" && goalWeightUnit === "lbs") {
+          setGoalWeight((val / 2.20462).toFixed(1));
+        } else if (newUnit === "lbs" && goalWeightUnit === "kg") {
+          setGoalWeight((val * 2.20462).toFixed(1));
+        }
+      }
+    }
+    setGoalWeightUnit(newUnit);
+  };
 
   const [calculated, setCalculated] = useState(false);
 
@@ -101,6 +123,16 @@ export default function GoalSetup({ existingGoals }: GoalSetupProps) {
       return;
     }
 
+    let goalWeightKg: number | null = null;
+    if (goalWeight) {
+      const val = parseFloat(goalWeight);
+      if (isNaN(val) || val <= 0) {
+        setError("Please enter a valid positive goal weight, or leave it blank");
+        return;
+      }
+      goalWeightKg = goalWeightUnit === "lbs" ? val / 2.20462 : val;
+    }
+
     setSaving(true);
     setError("");
 
@@ -108,7 +140,7 @@ export default function GoalSetup({ existingGoals }: GoalSetupProps) {
       const response = await fetch("/api/goals", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ calories: cal, proteinG: pro, carbsG: carb, fatG: fat }),
+        body: JSON.stringify({ calories: cal, proteinG: pro, carbsG: carb, fatG: fat, goalWeightKg }),
       });
 
       if (!response.ok) {
@@ -337,6 +369,30 @@ export default function GoalSetup({ existingGoals }: GoalSetupProps) {
                 placeholder="78"
                 class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               />
+            </div>
+          </div>
+
+          {/* Goal Weight */}
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Goal Weight <span class="text-gray-400 font-normal">(optional)</span></label>
+            <div class="mt-1 flex gap-2">
+              <input
+                type="number"
+                step="0.1"
+                min="1"
+                value={goalWeight}
+                onInput={(e) => setGoalWeight((e.target as HTMLInputElement).value)}
+                placeholder={goalWeightUnit === "lbs" ? "150" : "68"}
+                class="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              />
+              <select
+                value={goalWeightUnit}
+                onChange={(e) => handleGoalWeightUnitChange((e.target as HTMLSelectElement).value as WeightUnit)}
+                class="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              >
+                <option value="lbs">lbs</option>
+                <option value="kg">kg</option>
+              </select>
             </div>
           </div>
 

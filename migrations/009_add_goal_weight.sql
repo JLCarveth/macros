@@ -1,0 +1,2 @@
+ALTER TABLE user_goals
+    ADD COLUMN IF NOT EXISTS goal_weight_kg NUMERIC(5,2) DEFAULT NULL;

@@ -54,7 +54,7 @@ export const handler: Handlers = {
 
     try {
       const body = await req.json();
-      const { calories, proteinG, carbsG, fatG } = body;
+      const { calories, proteinG, carbsG, fatG, goalWeightKg } = body;
 
       if (
         typeof calories !== "number" || calories < 0 ||
@@ -68,11 +68,19 @@ export const handler: Handlers = {
         );
       }
 
+      if (goalWeightKg !== undefined && goalWeightKg !== null && (typeof goalWeightKg !== "number" || goalWeightKg <= 0)) {
+        return new Response(
+          JSON.stringify({ error: "Invalid goal weight. Must be a positive number." }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
       const goals = await upsertUserGoals(payload.userId, {
         calories: Math.round(calories),
         proteinG: Math.round(proteinG),
         carbsG: Math.round(carbsG),
         fatG: Math.round(fatG),
+        goalWeightKg: goalWeightKg ?? null,
       });
 
       return new Response(JSON.stringify(goals), {
