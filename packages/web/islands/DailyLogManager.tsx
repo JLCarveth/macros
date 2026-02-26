@@ -1,7 +1,10 @@
-import { useState, useEffect } from "preact/hooks";
+import { useState, useEffect, lazy, Suspense } from "preact/compat";
 import type { DailySummary, MealType, NutritionRecordWithSource, FoodLogEntryWithNutrition, UserGoals } from "@nutrition-llama/shared";
 import FoodSearch from "./FoodSearch.tsx";
+
 import MacroProgressBar from "./MacroProgressBar.tsx";
+
+const BarcodeScanner = lazy(() => import("./BarcodeScanner.tsx"));
 import { trackEvent } from "../utils/analytics.ts";
 
 interface DailyLogManagerProps {
@@ -65,6 +68,10 @@ export default function DailyLogManager({ date, initialSummary, goals }: DailyLo
 
   // Nutrient details collapse state
   const [showNutrientDetails, setShowNutrientDetails] = useState(false);
+
+  // Barcode scan state
+  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
+  const [barcodeLoading, setBarcodeLoading] = useState(false);
 
   // Quick entry mode state
   const [entryMode, setEntryMode] = useState<"food" | "quick">("food");
@@ -214,6 +221,30 @@ export default function DailyLogManager({ date, initialSummary, goals }: DailyLo
       setError(err instanceof Error ? err.message : "Failed to update entry");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleBarcodeScan = async (code: string) => {
+    setShowBarcodeScanner(false);
+    setBarcodeLoading(true);
+
+    try {
+      const response = await fetch(`/api/foods/upc/${encodeURIComponent(code.trim())}`);
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.lookupSource === "user") {
+          setSelectedFood({ ...data, isSystem: false });
+          setEntryMode("food");
+          return;
+        }
+      }
+      // Community, OFF, or not found — go to full UPC flow to save first
+      window.location.href = `/upc?code=${encodeURIComponent(code.trim())}`;
+    } catch {
+      window.location.href = `/upc?code=${encodeURIComponent(code.trim())}`;
+    } finally {
+      setBarcodeLoading(false);
     }
   };
 
@@ -508,10 +539,29 @@ export default function DailyLogManager({ date, initialSummary, goals }: DailyLo
                       </button>
                     </div>
                   ) : (
-                    <FoodSearch
-                      onSelect={(food) => setSelectedFood(food)}
-                      placeholder="Search your foods or USDA database..."
-                    />
+                    <div class="space-y-2">
+                      <FoodSearch
+                        onSelect={(food) => setSelectedFood(food)}
+                        placeholder="Search your foods or USDA database..."
+                      />
+                      {barcodeLoading ? (
+                        <div class="flex items-center justify-center gap-2 py-2 text-sm text-gray-500">
+                          <div class="h-4 w-4 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                          Looking up barcode...
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setShowBarcodeScanner(true)}
+                          class="w-full flex items-center justify-center gap-2 px-3 py-2 border border-gray-200 rounded-md text-sm text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors"
+                        >
+                          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                          </svg>
+                          Scan Barcode
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
 
@@ -657,6 +707,20 @@ export default function DailyLogManager({ date, initialSummary, goals }: DailyLo
           </form>
         )}
       </div>
+
+      {/* Barcode Scanner Modal */}
+      {showBarcodeScanner && (
+        <Suspense fallback={
+          <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
+            <div class="text-white">Loading scanner...</div>
+          </div>
+        }>
+          <BarcodeScanner
+            onScan={handleBarcodeScan}
+            onClose={() => setShowBarcodeScanner(false)}
+          />
+        </Suspense>
+      )}
 
       {/* Log Entries - Grouped by Meal */}
       <div class="space-y-4">
