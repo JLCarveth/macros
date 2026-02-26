@@ -5,18 +5,42 @@ import FoodLogForm from "./FoodLogForm.tsx";
 // Lazy load BarcodeScanner to prevent zxing-wasm from blocking hydration
 const BarcodeScanner = lazy(() => import("./BarcodeScanner.tsx"));
 
-type LookupState = "idle" | "scanning" | "loading" | "found" | "not_found";
+type LookupState = "idle" | "scanning" | "loading" | "found" | "not_found" | "saving";
+type LookupSource = "user" | "community" | "openfoodfacts";
 
 interface UpcLookupProps {
   initialCode: string | null;
 }
 
+interface FoodData {
+  id?: string;
+  name: string;
+  servingSizeValue: number;
+  servingSizeUnit: "g" | "ml";
+  calories: number;
+  totalFat: number | null;
+  carbohydrates: number | null;
+  fiber: number | null;
+  sugars: number | null;
+  protein: number | null;
+  cholesterol: number | null;
+  sodium: number | null;
+  upcCode: string | null;
+  // Community-specific
+  contributedByDisplayName?: string | null;
+  // OFF-specific
+  offProductUrl?: string | null;
+  offImageUrl?: string | null;
+}
+
 export default function UpcLookup({ initialCode }: UpcLookupProps) {
   const [state, setState] = useState<LookupState>("idle");
   const [upcCode, setUpcCode] = useState(initialCode || "");
-  const [food, setFood] = useState<NutritionRecord | null>(null);
+  const [food, setFood] = useState<FoodData | null>(null);
+  const [lookupSource, setLookupSource] = useState<LookupSource | null>(null);
   const [error, setError] = useState("");
   const [lastSearchedCode, setLastSearchedCode] = useState("");
+  const [shareWithCommunity, setShareWithCommunity] = useState(true);
 
   // Auto-lookup if initialCode is provided
   useEffect(() => {
@@ -40,6 +64,7 @@ export default function UpcLookup({ initialCode }: UpcLookupProps) {
 
       if (response.status === 404) {
         setState("not_found");
+        setLookupSource(null);
         return;
       }
 
@@ -50,6 +75,7 @@ export default function UpcLookup({ initialCode }: UpcLookupProps) {
 
       const foodData = await response.json();
       setFood(foodData);
+      setLookupSource(foodData.lookupSource || "user");
       setState("found");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to lookup food");
@@ -66,10 +92,130 @@ export default function UpcLookup({ initialCode }: UpcLookupProps) {
   const reset = () => {
     setState("idle");
     setFood(null);
+    setLookupSource(null);
     setUpcCode("");
     setError("");
     setLastSearchedCode("");
+    setShareWithCommunity(true);
   };
+
+  const saveToMyFoods = async () => {
+    if (!food) return;
+
+    setState("saving");
+    setError("");
+
+    try {
+      // Save to user's foods
+      const saveRes = await fetch("/api/foods", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: food.name,
+          servingSizeValue: food.servingSizeValue,
+          servingSizeUnit: food.servingSizeUnit,
+          calories: food.calories,
+          totalFat: food.totalFat,
+          carbohydrates: food.carbohydrates,
+          fiber: food.fiber,
+          sugars: food.sugars,
+          protein: food.protein,
+          cholesterol: food.cholesterol,
+          sodium: food.sodium,
+          upcCode: food.upcCode,
+          source: lookupSource === "openfoodfacts" ? "openfoodfacts" : "community",
+        }),
+      });
+
+      if (!saveRes.ok) {
+        const data = await saveRes.json();
+        throw new Error(data.error || "Failed to save food");
+      }
+
+      const savedFood = await saveRes.json();
+
+      // Optionally share with community
+      if (shareWithCommunity && food.upcCode) {
+        try {
+          await fetch("/api/foods/community", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: food.name,
+              servingSizeValue: food.servingSizeValue,
+              servingSizeUnit: food.servingSizeUnit,
+              calories: food.calories,
+              totalFat: food.totalFat,
+              carbohydrates: food.carbohydrates,
+              fiber: food.fiber,
+              sugars: food.sugars,
+              protein: food.protein,
+              cholesterol: food.cholesterol,
+              sodium: food.sodium,
+              upcCode: food.upcCode,
+              offProductUrl: food.offProductUrl,
+            }),
+          });
+        } catch {
+          // Community contribution is best-effort
+        }
+      }
+
+      // Update state to show as user's food with the saved ID
+      setFood({ ...food, id: savedFood.id });
+      setLookupSource("user");
+      setState("found");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save food");
+      setState("found");
+    }
+  };
+
+  const sourceBadge = () => {
+    if (!lookupSource) return null;
+
+    switch (lookupSource) {
+      case "user":
+        return (
+          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+            My Food
+          </span>
+        );
+      case "community":
+        return (
+          <div class="flex flex-col items-end gap-1">
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+              Community
+            </span>
+            {food?.contributedByDisplayName && (
+              <span class="text-xs text-gray-400">
+                by {food.contributedByDisplayName}
+              </span>
+            )}
+          </div>
+        );
+      case "openfoodfacts":
+        return (
+          <div class="flex flex-col items-end gap-1">
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+              Open Food Facts
+            </span>
+            {food?.offProductUrl && (
+              <a
+                href={food.offProductUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="text-xs text-orange-600 hover:underline"
+              >
+                View on OFF
+              </a>
+            )}
+          </div>
+        );
+    }
+  };
+
+  const isUnsaved = lookupSource !== "user";
 
   return (
     <div class="space-y-6">
@@ -140,6 +286,14 @@ export default function UpcLookup({ initialCode }: UpcLookupProps) {
         </div>
       )}
 
+      {/* Saving State */}
+      {state === "saving" && (
+        <div class="text-center py-12">
+          <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+          <p class="mt-4 text-gray-600">Saving to your foods...</p>
+        </div>
+      )}
+
       {/* Found State - Show food card and log form */}
       {state === "found" && food && (
         <div class="space-y-6">
@@ -152,9 +306,7 @@ export default function UpcLookup({ initialCode }: UpcLookupProps) {
                   {food.servingSizeValue} {food.servingSizeUnit} per serving
                 </p>
               </div>
-              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                Found
-              </span>
+              {sourceBadge()}
             </div>
 
             {/* Nutrition Summary */}
@@ -182,15 +334,47 @@ export default function UpcLookup({ initialCode }: UpcLookupProps) {
             )}
           </div>
 
-          {/* Log Form */}
-          <div class="bg-white shadow rounded-lg p-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">Log This Food</h3>
-            <FoodLogForm
-              mode="log"
-              foodId={food.id}
-              foodName={food.name}
-            />
-          </div>
+          {/* Save to My Foods (for community/OFF results) */}
+          {isUnsaved && (
+            <div class="bg-white shadow rounded-lg p-6 space-y-4">
+              <h3 class="text-lg font-medium text-gray-900">Save This Food</h3>
+              <p class="text-sm text-gray-500">
+                Save this food to your collection so you can quickly log it in the future.
+              </p>
+
+              {food.upcCode && (
+                <label class="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={shareWithCommunity}
+                    onChange={(e) => setShareWithCommunity((e.target as HTMLInputElement).checked)}
+                    class="h-4 w-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
+                  />
+                  <span class="text-sm text-gray-700">Share with community</span>
+                  <span class="text-xs text-gray-400">(helps others find this food by barcode)</span>
+                </label>
+              )}
+
+              <button
+                onClick={saveToMyFoods}
+                class="w-full px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
+              >
+                Save to My Foods
+              </button>
+            </div>
+          )}
+
+          {/* Log Form (only when food is saved / has an id) */}
+          {!isUnsaved && food.id && (
+            <div class="bg-white shadow rounded-lg p-6">
+              <h3 class="text-lg font-semibold text-gray-900 mb-4">Log This Food</h3>
+              <FoodLogForm
+                mode="log"
+                foodId={food.id}
+                foodName={food.name}
+              />
+            </div>
+          )}
 
           {/* Try Another */}
           <button

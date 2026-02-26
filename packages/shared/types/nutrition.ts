@@ -32,6 +32,11 @@ export interface NutritionData {
 }
 
 /**
+ * Food source types
+ */
+export type FoodSource = "manual" | "scan" | "api" | "openfoodfacts" | "community";
+
+/**
  * Nutrition record stored in the database
  */
 export interface NutritionRecord {
@@ -49,7 +54,7 @@ export interface NutritionRecord {
   cholesterol: number | null;
   sodium: number | null;
   upcCode: string | null;
-  source: "manual" | "scan" | "api";
+  source: FoodSource;
   createdAt: Date;
 }
 
@@ -76,7 +81,32 @@ export interface CreateNutritionRecordInput {
   cholesterol?: number;
   sodium?: number;
   upcCode?: string;
-  source?: "manual" | "scan" | "api";
+  source?: FoodSource;
+}
+
+/**
+ * Community food record shared across all users
+ */
+export interface CommunityFood {
+  id: string;
+  name: string;
+  servingSizeValue: number;
+  servingSizeUnit: ServingSizeUnit;
+  calories: number;
+  totalFat: number | null;
+  carbohydrates: number | null;
+  fiber: number | null;
+  sugars: number | null;
+  protein: number | null;
+  cholesterol: number | null;
+  sodium: number | null;
+  upcCode: string;
+  contributedByUserId: string | null;
+  contributedByDisplayName: string | null;
+  offProductUrl: string | null;
+  verifiedCount: number;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 /**
