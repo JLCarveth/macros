@@ -345,6 +345,18 @@ function mapNutritionRecordWithSource(
   };
 }
 
+// Splits query into whitespace-separated tokens and ANDs ILIKE conditions,
+// so "chicken thigh" matches names containing both "chicken" AND "thigh".
+// deno-lint-ignore no-explicit-any
+function buildNameCondition(query: string): any {
+  const tokens = query.trim().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return sql`FALSE`;
+  const conditions = tokens.map(
+    (t) => sql`name ILIKE ${`%${t.replace(/[%_\\]/g, "\\$&")}%`}`
+  );
+  return conditions.reduce((acc, cond) => sql`${acc} AND ${cond}`);
+}
+
 export async function searchFoods(
   userId: string,
   query: string,
@@ -352,15 +364,14 @@ export async function searchFoods(
   limit: number = 20
 ): Promise<NutritionRecordWithSource[]> {
   const systemUserId = await getSystemUserId();
-  const escaped = query.replace(/[%_\\]/g, "\\$&");
-  const pattern = `%${escaped}%`;
+  const nameCondition = buildNameCondition(query);
 
   let rows: Record<string, unknown>[];
 
   if (source === "user") {
     rows = await sql`
       SELECT * FROM nutrition_records
-      WHERE user_id = ${userId} AND name ILIKE ${pattern}
+      WHERE user_id = ${userId} AND ${nameCondition}
       ORDER BY name ASC
       LIMIT ${limit}
     `;
@@ -368,7 +379,7 @@ export async function searchFoods(
     if (!systemUserId) return [];
     rows = await sql`
       SELECT * FROM nutrition_records
-      WHERE user_id = ${systemUserId} AND name ILIKE ${pattern}
+      WHERE user_id = ${systemUserId} AND ${nameCondition}
       ORDER BY name ASC
       LIMIT ${limit}
     `;
@@ -377,7 +388,7 @@ export async function searchFoods(
     if (!systemUserId) {
       rows = await sql`
         SELECT * FROM nutrition_records
-        WHERE user_id = ${userId} AND name ILIKE ${pattern}
+        WHERE user_id = ${userId} AND ${nameCondition}
         ORDER BY name ASC
         LIMIT ${limit}
       `;
@@ -385,12 +396,12 @@ export async function searchFoods(
       rows = await sql`
         (
           SELECT *, 0 as sort_order FROM nutrition_records
-          WHERE user_id = ${userId} AND name ILIKE ${pattern}
+          WHERE user_id = ${userId} AND ${nameCondition}
         )
         UNION ALL
         (
           SELECT *, 1 as sort_order FROM nutrition_records
-          WHERE user_id = ${systemUserId} AND name ILIKE ${pattern}
+          WHERE user_id = ${systemUserId} AND ${nameCondition}
         )
         ORDER BY sort_order ASC, name ASC
         LIMIT ${limit}
@@ -636,14 +647,20 @@ export async function searchCommunityFoods(
   query: string,
   limit: number = 20
 ): Promise<CommunityFood[]> {
-  const escaped = query.replace(/[%_\\]/g, "\\$&");
-  const pattern = `%${escaped}%`;
+  // deno-lint-ignore no-explicit-any
+  const tokens = query.trim().split(/\s+/).filter(Boolean);
+  // deno-lint-ignore no-explicit-any
+  const cfCondition: any = tokens.length === 0
+    ? sql`FALSE`
+    : tokens
+        .map((t) => sql`cf.name ILIKE ${`%${t.replace(/[%_\\]/g, "\\$&")}%`}`)
+        .reduce((acc: any, cond: any) => sql`${acc} AND ${cond}`);
 
   const rows = await sql`
     SELECT cf.*, u.display_name as contributor_display_name
     FROM community_foods cf
     LEFT JOIN users u ON cf.contributed_by_user_id = u.id
-    WHERE cf.name ILIKE ${pattern}
+    WHERE ${cfCondition}
     ORDER BY cf.verified_count DESC, cf.name ASC
     LIMIT ${limit}
   `;
