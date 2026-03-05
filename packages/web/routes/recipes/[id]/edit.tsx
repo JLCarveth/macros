@@ -60,6 +60,8 @@ export default function EditRecipePage({ data }: PageProps<EditRecipeData>) {
               protein: ing.nutritionRecord.protein,
               carbohydrates: ing.nutritionRecord.carbohydrates,
               totalFat: ing.nutritionRecord.totalFat,
+              servingSizeValue: ing.nutritionRecord.servingSizeValue,
+              servingSizeUnit: ing.nutritionRecord.servingSizeUnit,
             })),
           }}
         />

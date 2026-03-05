@@ -1,22 +1,37 @@
 import { useState } from "preact/hooks";
-import type { NutritionRecordWithSource } from "@nutrition-llama/shared";
+import type { NutritionRecordWithSource, ServingSizeUnit } from "@nutrition-llama/shared";
 import FoodSearch from "./FoodSearch.tsx";
 
 interface IngredientLine {
   nutritionRecordId: string;
   name: string;
-  amountServings: number;
+  inputAmount: number;
+  inputUnit: "servings" | "g" | "ml";
+  servingSizeValue: number;
+  servingSizeUnit: ServingSizeUnit;
   calories: number;
   protein: number | null;
   carbohydrates: number | null;
   totalFat: number | null;
 }
 
+interface InitialIngredient {
+  nutritionRecordId: string;
+  amountServings: number;
+  name: string;
+  calories: number;
+  protein: number | null;
+  carbohydrates: number | null;
+  totalFat: number | null;
+  servingSizeValue: number;
+  servingSizeUnit: ServingSizeUnit;
+}
+
 interface InitialData {
   name: string;
   description: string;
   servings: number;
-  ingredients: IngredientLine[];
+  ingredients: InitialIngredient[];
 }
 
 interface Props {
@@ -25,23 +40,29 @@ interface Props {
   initialData?: InitialData;
 }
 
+function getAmountServings(ing: IngredientLine): number {
+  if (ing.inputUnit === "servings") return ing.inputAmount;
+  return ing.servingSizeValue > 0 ? ing.inputAmount / ing.servingSizeValue : 0;
+}
+
 function computePreview(
   ingredients: IngredientLine[],
   servings: number
 ): { calories: number; protein: number; carbs: number; fat: number } {
   let cal = 0, protein = 0, carbs = 0, fat = 0;
   for (const ing of ingredients) {
-    cal += ing.calories * ing.amountServings;
-    protein += (ing.protein ?? 0) * ing.amountServings;
-    carbs += (ing.carbohydrates ?? 0) * ing.amountServings;
-    fat += (ing.totalFat ?? 0) * ing.amountServings;
+    const s = getAmountServings(ing);
+    cal += ing.calories * s;
+    protein += (ing.protein ?? 0) * s;
+    carbs += (ing.carbohydrates ?? 0) * s;
+    fat += (ing.totalFat ?? 0) * s;
   }
-  const s = servings > 0 ? servings : 1;
+  const sv = servings > 0 ? servings : 1;
   return {
-    calories: Math.round(cal / s),
-    protein: Math.round(protein / s),
-    carbs: Math.round(carbs / s),
-    fat: Math.round(fat / s),
+    calories: Math.round(cal / sv),
+    protein: Math.round(protein / sv),
+    carbs: Math.round(carbs / sv),
+    fat: Math.round(fat / sv),
   };
 }
 
@@ -50,20 +71,33 @@ export default function RecipeForm({ mode, recipeId, initialData }: Props) {
   const [description, setDescription] = useState(initialData?.description ?? "");
   const [servings, setServings] = useState(String(initialData?.servings ?? "1"));
   const [ingredients, setIngredients] = useState<IngredientLine[]>(
-    initialData?.ingredients ?? []
+    initialData?.ingredients.map((ing) => ({
+      nutritionRecordId: ing.nutritionRecordId,
+      name: ing.name,
+      inputAmount: ing.amountServings,
+      inputUnit: "servings" as const,
+      servingSizeValue: ing.servingSizeValue,
+      servingSizeUnit: ing.servingSizeUnit,
+      calories: ing.calories,
+      protein: ing.protein,
+      carbohydrates: ing.carbohydrates,
+      totalFat: ing.totalFat,
+    })) ?? []
   );
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleAddIngredient = (food: NutritionRecordWithSource) => {
-    // Avoid duplicates
     if (ingredients.find((i) => i.nutritionRecordId === food.id)) return;
     setIngredients([
       ...ingredients,
       {
         nutritionRecordId: food.id,
         name: food.name,
-        amountServings: 1,
+        inputAmount: 1,
+        inputUnit: "servings",
+        servingSizeValue: food.servingSizeValue,
+        servingSizeUnit: food.servingSizeUnit,
         calories: food.calories,
         protein: food.protein,
         carbohydrates: food.carbohydrates,
@@ -80,7 +114,24 @@ export default function RecipeForm({ mode, recipeId, initialData }: Props) {
     const amount = parseFloat(val);
     if (isNaN(amount) || amount <= 0) return;
     setIngredients(
-      ingredients.map((ing, i) => (i === idx ? { ...ing, amountServings: amount } : ing))
+      ingredients.map((ing, i) => (i === idx ? { ...ing, inputAmount: amount } : ing))
+    );
+  };
+
+  const handleUnitChange = (idx: number, unit: "servings" | "g" | "ml") => {
+    setIngredients(
+      ingredients.map((ing, i) => {
+        if (i !== idx) return ing;
+        let newAmount = ing.inputAmount;
+        if (ing.inputUnit === "servings" && unit !== "servings") {
+          // servings → g/ml: multiply by the food's serving size
+          newAmount = parseFloat((ing.inputAmount * ing.servingSizeValue).toFixed(1));
+        } else if (ing.inputUnit !== "servings" && unit === "servings") {
+          // g/ml → servings: divide by the food's serving size
+          newAmount = parseFloat((ing.inputAmount / ing.servingSizeValue).toFixed(3));
+        }
+        return { ...ing, inputUnit: unit, inputAmount: newAmount };
+      })
     );
   };
 
@@ -112,7 +163,7 @@ export default function RecipeForm({ mode, recipeId, initialData }: Props) {
         servings: parsedServings,
         ingredients: ingredients.map((ing) => ({
           nutritionRecordId: ing.nutritionRecordId,
-          amountServings: ing.amountServings,
+          amountServings: getAmountServings(ing),
         })),
       };
 
@@ -205,40 +256,65 @@ export default function RecipeForm({ mode, recipeId, initialData }: Props) {
 
         {ingredients.length > 0 ? (
           <ul class="divide-y divide-gray-100">
-            {ingredients.map((ing, idx) => (
-              <li key={ing.nutritionRecordId} class="py-3 flex items-center gap-3">
-                <div class="flex-1 min-w-0">
-                  <p class="text-sm font-medium text-gray-900 truncate">{ing.name}</p>
-                  <p class="text-xs text-gray-500">
-                    {Math.round(ing.calories * ing.amountServings)} cal total
-                  </p>
-                </div>
-                <div class="flex items-center gap-2">
-                  <input
-                    type="number"
-                    step="0.25"
-                    min="0.01"
-                    value={ing.amountServings}
-                    onInput={(e) =>
-                      handleAmountChange(idx, (e.target as HTMLInputElement).value)
-                    }
-                    class="w-20 px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                    title="Amount in servings"
-                  />
-                  <span class="text-xs text-gray-500 whitespace-nowrap">servings</span>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveIngredient(idx)}
-                    class="p-1 text-gray-400 hover:text-red-600 rounded"
-                    title="Remove"
-                  >
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              </li>
-            ))}
+            {ingredients.map((ing, idx) => {
+              const totalCal = Math.round(ing.calories * getAmountServings(ing));
+              const canSwitchUnit = ing.servingSizeUnit !== "serving";
+              return (
+                <li key={ing.nutritionRecordId} class="py-3">
+                  <div class="flex items-start gap-3">
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm font-medium text-gray-900">{ing.name}</p>
+                      {canSwitchUnit && (
+                        <p class="text-xs text-gray-400">
+                          1 serving = {ing.servingSizeValue}{ing.servingSizeUnit}
+                        </p>
+                      )}
+                      <p class="text-xs text-gray-500 mt-0.5">{totalCal} cal total</p>
+                    </div>
+                    <div class="flex items-center gap-1.5 flex-shrink-0">
+                      <input
+                        type="number"
+                        step={canSwitchUnit && ing.inputUnit !== "servings" ? "1" : "0.25"}
+                        min="0.01"
+                        value={ing.inputAmount}
+                        onInput={(e) =>
+                          handleAmountChange(idx, (e.target as HTMLInputElement).value)
+                        }
+                        class="w-20 px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                        title={canSwitchUnit ? `Amount in ${ing.inputUnit}` : "Amount in servings"}
+                      />
+                      {canSwitchUnit ? (
+                        <select
+                          value={ing.inputUnit}
+                          onChange={(e) =>
+                            handleUnitChange(
+                              idx,
+                              (e.target as HTMLSelectElement).value as "servings" | "g" | "ml"
+                            )
+                          }
+                          class="text-sm border border-gray-300 rounded-md px-1 py-1 focus:ring-primary-500 focus:border-primary-500 bg-white"
+                        >
+                          <option value="servings">servings</option>
+                          <option value={ing.servingSizeUnit}>{ing.servingSizeUnit}</option>
+                        </select>
+                      ) : (
+                        <span class="text-xs text-gray-500 whitespace-nowrap">servings</span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveIngredient(idx)}
+                        class="p-1 text-gray-400 hover:text-red-600 rounded"
+                        title="Remove"
+                      >
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         ) : (
           <p class="text-sm text-gray-500 text-center py-4">
