@@ -191,10 +191,17 @@ export default function FoodSearch({ onSelect, placeholder = "Search foods..." }
                           USDA
                         </span>
                       )}
+                      {food.source === "recipe" && (
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-100 text-indigo-700 flex-shrink-0">
+                          Recipe
+                        </span>
+                      )}
                     </div>
                   </div>
                   <span class="text-xs text-gray-500 ml-2 flex-shrink-0">
-                    {food.calories} cal / {food.servingSizeValue}{food.servingSizeUnit}
+                    {food.calories} cal{food.servingSizeUnit !== "serving"
+                      ? ` / ${food.servingSizeValue}${food.servingSizeUnit}`
+                      : " / serving"}
                   </span>
                 </li>
               ))}

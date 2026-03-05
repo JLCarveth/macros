@@ -33,6 +33,12 @@ export default function Layout({ Component, state }: PageProps) {
                     My Foods
                   </a>
                   <a
+                    href="/recipes"
+                    class="px-3 py-2 text-sm font-medium text-gray-700 hover:text-primary-600 rounded-md"
+                  >
+                    Recipes
+                  </a>
+                  <a
                     href="/log"
                     class="px-3 py-2 text-sm font-medium text-gray-700 hover:text-primary-600 rounded-md"
                   >
@@ -121,6 +127,15 @@ export default function Layout({ Component, state }: PageProps) {
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                 </svg>
                 Foods
+              </a>
+              <a
+                href="/recipes"
+                class="flex flex-col items-center px-2 py-1 text-xs font-medium text-gray-600 hover:text-primary-600"
+              >
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                Recipes
               </a>
               <a
                 href="/log"

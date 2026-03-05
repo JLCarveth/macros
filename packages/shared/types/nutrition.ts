@@ -2,7 +2,7 @@
  * Nutrition-related types extracted from the API
  */
 
-export type ServingSizeUnit = "g" | "ml";
+export type ServingSizeUnit = "g" | "ml" | "serving";
 export type CaloriesUnit = "kcal";
 export type MassUnit = "g" | "mg";
 
@@ -34,7 +34,7 @@ export interface NutritionData {
 /**
  * Food source types
  */
-export type FoodSource = "manual" | "scan" | "api" | "openfoodfacts" | "community";
+export type FoodSource = "manual" | "scan" | "api" | "openfoodfacts" | "community" | "recipe";
 
 /**
  * Nutrition record stored in the database

@@ -522,9 +522,14 @@ export default function DailyLogManager({ date, initialSummary, goals }: DailyLo
                               USDA
                             </span>
                           )}
+                          {selectedFood.source === "recipe" && (
+                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-100 text-indigo-700">
+                              Recipe
+                            </span>
+                          )}
                         </div>
                         <span class="text-xs text-gray-500">
-                          {selectedFood.calories || 0} cal per {selectedFood.servingSizeValue}{selectedFood.servingSizeUnit}
+                          {selectedFood.calories || 0} cal per {selectedFood.servingSizeUnit === "serving" ? "serving" : `${selectedFood.servingSizeValue}${selectedFood.servingSizeUnit}`}
                         </span>
                       </div>
                       <button

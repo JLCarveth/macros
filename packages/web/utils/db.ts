@@ -20,6 +20,12 @@ import type {
   CalorieTrendPoint,
   CommunityFood,
   FoodSource,
+  ServingSizeUnit,
+  Recipe,
+  RecipeWithIngredients,
+  RecipeIngredientWithFood,
+  CreateRecipeInput,
+  UpdateRecipeInput,
 } from "@nutrition-llama/shared";
 
 // Create connection with built-in pooling
@@ -202,7 +208,7 @@ function mapNutritionRecord(row: Record<string, unknown>): NutritionRecord {
     userId: row.user_id as string,
     name: row.name as string,
     servingSizeValue: row.serving_size_value as number,
-    servingSizeUnit: row.serving_size_unit as "g" | "ml",
+    servingSizeUnit: row.serving_size_unit as ServingSizeUnit,
     calories: row.calories as number,
     totalFat: row.total_fat as number | null,
     carbohydrates: row.carbohydrates as number | null,
@@ -243,7 +249,7 @@ export async function createNutritionRecord(
 
 export async function getUserFoods(userId: string): Promise<NutritionRecord[]> {
   const rows = await sql`
-    SELECT * FROM nutrition_records WHERE user_id = ${userId} ORDER BY created_at DESC
+    SELECT * FROM nutrition_records WHERE user_id = ${userId} AND source != 'recipe' ORDER BY created_at DESC
   `;
 
   return rows.map(mapNutritionRecord);
@@ -442,7 +448,7 @@ export async function countFoods(
 ): Promise<number> {
   if (source === "user") {
     const [row] = await sql`
-      SELECT COUNT(*)::int as count FROM nutrition_records WHERE user_id = ${userId}
+      SELECT COUNT(*)::int as count FROM nutrition_records WHERE user_id = ${userId} AND source != 'recipe'
     `;
     return row?.count ?? 0;
   } else {
@@ -810,7 +816,7 @@ export async function getDailySummary(
       userId: row.food_user_id as string,
       name: row.food_name as string,
       servingSizeValue: row.serving_size_value as number,
-      servingSizeUnit: row.serving_size_unit as "g" | "ml",
+      servingSizeUnit: row.serving_size_unit as ServingSizeUnit,
       calories: row.calories as number,
       totalFat: row.total_fat as number | null,
       carbohydrates: row.carbohydrates as number | null,
@@ -949,6 +955,391 @@ export async function getCalorieTrend(
     date: row.date,
     totalCalories: Number(row.total_calories),
   }));
+}
+
+// ============ RECIPE FUNCTIONS ============
+
+interface RecipeNutritionInput {
+  calories: number;
+  totalFat: number | null;
+  carbohydrates: number | null;
+  fiber: number | null;
+  sugars: number | null;
+  protein: number | null;
+  cholesterol: number | null;
+  sodium: number | null;
+  amountServings: number;
+}
+
+export function computeRecipeNutrition(
+  ingredients: RecipeNutritionInput[],
+  recipeServings: number
+): {
+  calories: number;
+  totalFat: number;
+  carbohydrates: number;
+  fiber: number;
+  sugars: number;
+  protein: number;
+  cholesterol: number;
+  sodium: number;
+} {
+  let calories = 0;
+  let totalFat = 0;
+  let carbohydrates = 0;
+  let fiber = 0;
+  let sugars = 0;
+  let protein = 0;
+  let cholesterol = 0;
+  let sodium = 0;
+
+  for (const ing of ingredients) {
+    const a = ing.amountServings;
+    calories += ing.calories * a;
+    totalFat += (ing.totalFat ?? 0) * a;
+    carbohydrates += (ing.carbohydrates ?? 0) * a;
+    fiber += (ing.fiber ?? 0) * a;
+    sugars += (ing.sugars ?? 0) * a;
+    protein += (ing.protein ?? 0) * a;
+    cholesterol += (ing.cholesterol ?? 0) * a;
+    sodium += (ing.sodium ?? 0) * a;
+  }
+
+  const s = recipeServings > 0 ? recipeServings : 1;
+  return {
+    calories: Math.round((calories / s) * 10) / 10,
+    totalFat: Math.round((totalFat / s) * 10) / 10,
+    carbohydrates: Math.round((carbohydrates / s) * 10) / 10,
+    fiber: Math.round((fiber / s) * 10) / 10,
+    sugars: Math.round((sugars / s) * 10) / 10,
+    protein: Math.round((protein / s) * 10) / 10,
+    cholesterol: Math.round((cholesterol / s) * 10) / 10,
+    sodium: Math.round((sodium / s) * 10) / 10,
+  };
+}
+
+function mapRecipeWithIngredients(
+  recipeRow: Record<string, unknown>,
+  ingredientRows: Record<string, unknown>[],
+  nutritionRow: Record<string, unknown>
+): RecipeWithIngredients {
+  const ingredients: RecipeIngredientWithFood[] = ingredientRows.map((row) => ({
+    id: row.id as string,
+    recipeId: row.recipe_id as string,
+    nutritionRecordId: row.nutrition_record_id as string,
+    amountServings: Number(row.amount_servings),
+    createdAt: row.created_at as Date,
+    nutritionRecord: mapNutritionRecord(row),
+  }));
+
+  return {
+    id: recipeRow.id as string,
+    userId: recipeRow.user_id as string,
+    name: recipeRow.name as string,
+    description: recipeRow.description as string | null,
+    servings: Number(recipeRow.servings),
+    nutritionRecordId: recipeRow.nutrition_record_id as string,
+    createdAt: recipeRow.created_at as Date,
+    updatedAt: recipeRow.updated_at as Date,
+    ingredients,
+    nutrition: mapNutritionRecord(nutritionRow),
+  };
+}
+
+export async function createRecipe(
+  userId: string,
+  input: CreateRecipeInput
+): Promise<RecipeWithIngredients> {
+  return await sql.begin(async (_tx) => {
+    // deno-lint-ignore no-explicit-any
+    const tx = _tx as any;
+    // Fetch all ingredient nutrition records
+    const ingredientRecords: (NutritionRecord & { amountServings: number })[] = [];
+    for (const ing of input.ingredients) {
+      const systemUserId = await getSystemUserId();
+      let row: Record<string, unknown> | undefined;
+      if (systemUserId) {
+        [row] = await tx`
+          SELECT * FROM nutrition_records
+          WHERE id = ${ing.nutritionRecordId} AND (user_id = ${userId} OR user_id = ${systemUserId})
+        `;
+      } else {
+        [row] = await tx`
+          SELECT * FROM nutrition_records WHERE id = ${ing.nutritionRecordId} AND user_id = ${userId}
+        `;
+      }
+      if (!row) throw new Error(`Ingredient not found: ${ing.nutritionRecordId}`);
+      ingredientRecords.push({ ...mapNutritionRecord(row), amountServings: ing.amountServings });
+    }
+
+    // Compute per-serving nutrition
+    const nutrition = computeRecipeNutrition(ingredientRecords, input.servings);
+
+    // Insert backing nutrition_record
+    const [nrRow] = await tx`
+      INSERT INTO nutrition_records (
+        user_id, name, serving_size_value, serving_size_unit, calories,
+        total_fat, carbohydrates, fiber, sugars, protein, cholesterol, sodium,
+        upc_code, source
+      )
+      VALUES (
+        ${userId}, ${input.name}, ${1}, ${'serving'},
+        ${nutrition.calories}, ${nutrition.totalFat}, ${nutrition.carbohydrates},
+        ${nutrition.fiber}, ${nutrition.sugars}, ${nutrition.protein},
+        ${nutrition.cholesterol}, ${nutrition.sodium},
+        ${null}, ${'recipe'}
+      )
+      RETURNING *
+    `;
+
+    // Insert recipe row
+    const [recipeRow] = await tx`
+      INSERT INTO recipes (user_id, name, description, servings, nutrition_record_id)
+      VALUES (${userId}, ${input.name}, ${input.description ?? null}, ${input.servings}, ${nrRow.id})
+      RETURNING *
+    `;
+
+    // Insert recipe_ingredients
+    const ingredientRows: Record<string, unknown>[] = [];
+    for (const ing of ingredientRecords) {
+      const [ingRow] = await tx`
+        INSERT INTO recipe_ingredients (recipe_id, nutrition_record_id, amount_servings)
+        VALUES (${recipeRow.id}, ${ing.id}, ${ing.amountServings})
+        RETURNING id, recipe_id, nutrition_record_id, amount_servings, created_at
+      `;
+      // Build a row that mapRecipeWithIngredients can use (needs nr fields too)
+      const [nrForIng] = await tx`SELECT * FROM nutrition_records WHERE id = ${ing.id}`;
+      ingredientRows.push({ ...ingRow, ...nrForIng });
+    }
+
+    return mapRecipeWithIngredients(recipeRow, ingredientRows, nrRow);
+  });
+}
+
+export async function getUserRecipes(userId: string): Promise<RecipeWithIngredients[]> {
+  const recipeRows = await sql`
+    SELECT * FROM recipes WHERE user_id = ${userId} ORDER BY created_at DESC
+  `;
+
+  const results: RecipeWithIngredients[] = [];
+  for (const recipeRow of recipeRows) {
+    const [nrRow] = await sql`
+      SELECT * FROM nutrition_records WHERE id = ${recipeRow.nutrition_record_id}
+    `;
+    const ingredientRows = await sql`
+      SELECT ri.id, ri.recipe_id, ri.nutrition_record_id, ri.amount_servings, ri.created_at,
+             nr.id as nr_id, nr.user_id, nr.name, nr.serving_size_value, nr.serving_size_unit,
+             nr.calories, nr.total_fat, nr.carbohydrates, nr.fiber, nr.sugars,
+             nr.protein, nr.cholesterol, nr.sodium, nr.upc_code, nr.source, nr.created_at as nr_created_at
+      FROM recipe_ingredients ri
+      JOIN nutrition_records nr ON ri.nutrition_record_id = nr.id
+      WHERE ri.recipe_id = ${recipeRow.id}
+    `;
+
+    // Remap ingredient rows so mapNutritionRecord works (it reads created_at from row)
+    const remappedIngredients = ingredientRows.map((row) => ({
+      id: row.id,
+      recipe_id: row.recipe_id,
+      nutrition_record_id: row.nutrition_record_id,
+      amount_servings: row.amount_servings,
+      created_at: row.created_at,
+      // NR fields:
+      user_id: row.user_id,
+      name: row.name,
+      serving_size_value: row.serving_size_value,
+      serving_size_unit: row.serving_size_unit,
+      calories: row.calories,
+      total_fat: row.total_fat,
+      carbohydrates: row.carbohydrates,
+      fiber: row.fiber,
+      sugars: row.sugars,
+      protein: row.protein,
+      cholesterol: row.cholesterol,
+      sodium: row.sodium,
+      upc_code: row.upc_code,
+      source: row.source,
+    }));
+
+    results.push(mapRecipeWithIngredients(recipeRow, remappedIngredients, nrRow));
+  }
+
+  return results;
+}
+
+export async function getRecipeById(
+  id: string,
+  userId: string
+): Promise<RecipeWithIngredients | null> {
+  const [recipeRow] = await sql`
+    SELECT * FROM recipes WHERE id = ${id} AND user_id = ${userId}
+  `;
+  if (!recipeRow) return null;
+
+  const [nrRow] = await sql`
+    SELECT * FROM nutrition_records WHERE id = ${recipeRow.nutrition_record_id}
+  `;
+
+  const ingredientRows = await sql`
+    SELECT ri.id, ri.recipe_id, ri.nutrition_record_id, ri.amount_servings, ri.created_at,
+           nr.user_id, nr.name, nr.serving_size_value, nr.serving_size_unit,
+           nr.calories, nr.total_fat, nr.carbohydrates, nr.fiber, nr.sugars,
+           nr.protein, nr.cholesterol, nr.sodium, nr.upc_code, nr.source
+    FROM recipe_ingredients ri
+    JOIN nutrition_records nr ON ri.nutrition_record_id = nr.id
+    WHERE ri.recipe_id = ${id}
+  `;
+
+  const remappedIngredients = ingredientRows.map((row) => ({
+    id: row.id,
+    recipe_id: row.recipe_id,
+    nutrition_record_id: row.nutrition_record_id,
+    amount_servings: row.amount_servings,
+    created_at: row.created_at,
+    user_id: row.user_id,
+    name: row.name,
+    serving_size_value: row.serving_size_value,
+    serving_size_unit: row.serving_size_unit,
+    calories: row.calories,
+    total_fat: row.total_fat,
+    carbohydrates: row.carbohydrates,
+    fiber: row.fiber,
+    sugars: row.sugars,
+    protein: row.protein,
+    cholesterol: row.cholesterol,
+    sodium: row.sodium,
+    upc_code: row.upc_code,
+    source: row.source,
+  }));
+
+  return mapRecipeWithIngredients(recipeRow, remappedIngredients, nrRow);
+}
+
+export async function updateRecipe(
+  id: string,
+  userId: string,
+  input: UpdateRecipeInput
+): Promise<RecipeWithIngredients | null> {
+  return await sql.begin(async (_tx) => {
+    // deno-lint-ignore no-explicit-any
+    const tx = _tx as any;
+    const [existing] = await tx`
+      SELECT * FROM recipes WHERE id = ${id} AND user_id = ${userId}
+    `;
+    if (!existing) return null;
+
+    // Update recipes table
+    const updates: Record<string, unknown> = {};
+    if (input.name !== undefined) updates.name = input.name;
+    if (input.description !== undefined) updates.description = input.description;
+    if (input.servings !== undefined) updates.servings = input.servings;
+
+    let recipeRow = existing;
+    if (Object.keys(updates).length > 0) {
+      const [updated] = await tx`
+        UPDATE recipes SET ${sql(updates)} WHERE id = ${id} RETURNING *
+      `;
+      recipeRow = updated;
+    }
+
+    // Determine effective ingredients and servings for nutrition recompute
+    const effectiveServings = input.servings ?? Number(existing.servings);
+    let effectiveIngredients = input.ingredients;
+
+    if (effectiveIngredients !== undefined) {
+      // Replace ingredients
+      await tx`DELETE FROM recipe_ingredients WHERE recipe_id = ${id}`;
+      for (const ing of effectiveIngredients) {
+        await tx`
+          INSERT INTO recipe_ingredients (recipe_id, nutrition_record_id, amount_servings)
+          VALUES (${id}, ${ing.nutritionRecordId}, ${ing.amountServings})
+        `;
+      }
+    }
+
+    // Fetch current ingredient records for nutrition recompute
+    const ingredientRows = await tx`
+      SELECT ri.id, ri.recipe_id, ri.nutrition_record_id, ri.amount_servings, ri.created_at,
+             nr.user_id, nr.name, nr.serving_size_value, nr.serving_size_unit,
+             nr.calories, nr.total_fat, nr.carbohydrates, nr.fiber, nr.sugars,
+             nr.protein, nr.cholesterol, nr.sodium, nr.upc_code, nr.source
+      FROM recipe_ingredients ri
+      JOIN nutrition_records nr ON ri.nutrition_record_id = nr.id
+      WHERE ri.recipe_id = ${id}
+    `;
+
+    const ingredientsForCalc = ingredientRows.map((row: Record<string, unknown>) => ({
+      calories: row.calories as number,
+      totalFat: row.total_fat as number | null,
+      carbohydrates: row.carbohydrates as number | null,
+      fiber: row.fiber as number | null,
+      sugars: row.sugars as number | null,
+      protein: row.protein as number | null,
+      cholesterol: row.cholesterol as number | null,
+      sodium: row.sodium as number | null,
+      amountServings: Number(row.amount_servings),
+    }));
+
+    const nutrition = computeRecipeNutrition(ingredientsForCalc, effectiveServings);
+    const effectiveName = input.name ?? (existing.name as string);
+
+    const [nrRow] = await tx`
+      UPDATE nutrition_records SET
+        name = ${effectiveName},
+        calories = ${nutrition.calories},
+        total_fat = ${nutrition.totalFat},
+        carbohydrates = ${nutrition.carbohydrates},
+        fiber = ${nutrition.fiber},
+        sugars = ${nutrition.sugars},
+        protein = ${nutrition.protein},
+        cholesterol = ${nutrition.cholesterol},
+        sodium = ${nutrition.sodium}
+      WHERE id = ${existing.nutrition_record_id}
+      RETURNING *
+    `;
+
+    const remappedIngredients = ingredientRows.map((row: Record<string, unknown>) => ({
+      id: row.id,
+      recipe_id: row.recipe_id,
+      nutrition_record_id: row.nutrition_record_id,
+      amount_servings: row.amount_servings,
+      created_at: row.created_at,
+      user_id: row.user_id,
+      name: row.name,
+      serving_size_value: row.serving_size_value,
+      serving_size_unit: row.serving_size_unit,
+      calories: row.calories,
+      total_fat: row.total_fat,
+      carbohydrates: row.carbohydrates,
+      fiber: row.fiber,
+      sugars: row.sugars,
+      protein: row.protein,
+      cholesterol: row.cholesterol,
+      sodium: row.sodium,
+      upc_code: row.upc_code,
+      source: row.source,
+    }));
+
+    return mapRecipeWithIngredients(recipeRow, remappedIngredients, nrRow);
+  });
+}
+
+export async function deleteRecipe(id: string, userId: string): Promise<boolean> {
+  return await sql.begin(async (_tx) => {
+    // deno-lint-ignore no-explicit-any
+    const tx = _tx as any;
+    const [recipe] = await tx`
+      SELECT nutrition_record_id FROM recipes WHERE id = ${id} AND user_id = ${userId}
+    `;
+    if (!recipe) return false;
+
+    const nrId = recipe.nutrition_record_id as string;
+
+    await tx`DELETE FROM recipe_ingredients WHERE recipe_id = ${id}`;
+    await tx`DELETE FROM recipes WHERE id = ${id} AND user_id = ${userId}`;
+    await tx`DELETE FROM nutrition_records WHERE id = ${nrId} AND user_id = ${userId}`;
+
+    return true;
+  });
 }
 
 export async function getLoggingStreak(

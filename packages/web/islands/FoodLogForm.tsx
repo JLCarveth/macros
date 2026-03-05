@@ -289,7 +289,7 @@ export default function FoodLogForm({ mode, foodId, foodName, initialUpc, foodNu
               class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
             >
               <option value="servings">servings</option>
-              {foodNutrition && foodNutrition.servingSizeValue > 0 && (
+              {foodNutrition && foodNutrition.servingSizeValue > 0 && foodNutrition.servingSizeUnit !== "serving" && (
                 <option value={foodNutrition.servingSizeUnit}>
                   {foodNutrition.servingSizeUnit === "g" ? "grams (g)" : "milliliters (ml)"}
                 </option>
