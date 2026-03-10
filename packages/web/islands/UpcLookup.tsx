@@ -372,6 +372,18 @@ export default function UpcLookup({ initialCode }: UpcLookupProps) {
                 mode="log"
                 foodId={food.id}
                 foodName={food.name}
+                foodNutrition={{
+                  calories: food.calories,
+                  protein: food.protein,
+                  carbohydrates: food.carbohydrates,
+                  totalFat: food.totalFat,
+                  fiber: food.fiber,
+                  sugars: food.sugars,
+                  sodium: food.sodium,
+                  cholesterol: food.cholesterol,
+                  servingSizeValue: food.servingSizeValue,
+                  servingSizeUnit: food.servingSizeUnit,
+                }}
               />
             </div>
           )}
