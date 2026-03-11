@@ -59,6 +59,7 @@ export default function DailyLogManager({ date, initialSummary, goals }: DailyLo
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedFood, setSelectedFood] = useState<NutritionRecordWithSource | null>(null);
   const [servings, setServings] = useState("1");
+  const [amountUnit, setAmountUnit] = useState<"servings" | "g" | "ml">("servings");
   const [mealType, setMealType] = useState<MealType>("snack");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -99,6 +100,26 @@ export default function DailyLogManager({ date, initialSummary, goals }: DailyLo
     }
   };
 
+  const calculateServings = (): number => {
+    const amount = parseFloat(servings) || 0;
+    if (amountUnit === "servings" || !selectedFood || selectedFood.servingSizeValue === 0) {
+      return amount;
+    }
+    return amount / selectedFood.servingSizeValue;
+  };
+
+  const handleUnitChange = (newUnit: "servings" | "g" | "ml") => {
+    const currentAmount = parseFloat(servings) || 1;
+    const currentServings = amountUnit === "servings"
+      ? currentAmount
+      : currentAmount / (selectedFood?.servingSizeValue || 1);
+    const newAmount = newUnit === "servings"
+      ? currentServings
+      : currentServings * (selectedFood?.servingSizeValue || 1);
+    setServings(newAmount.toFixed(2));
+    setAmountUnit(newUnit);
+  };
+
   const handleAddEntry = async (e: Event) => {
     e.preventDefault();
 
@@ -123,7 +144,7 @@ export default function DailyLogManager({ date, initialSummary, goals }: DailyLo
       if (entryMode === "food") {
         body = {
           nutritionRecordId: selectedFood!.id,
-          servings: parseFloat(servings),
+          servings: calculateServings(),
           mealType,
           loggedDate: date,
         };
@@ -158,6 +179,7 @@ export default function DailyLogManager({ date, initialSummary, goals }: DailyLo
       setShowAddForm(false);
       setSelectedFood(null);
       setServings("1");
+      setAmountUnit("servings");
       setMealType("snack");
       setQuickProtein("");
       setQuickCarbs("");
@@ -546,7 +568,7 @@ export default function DailyLogManager({ date, initialSummary, goals }: DailyLo
                   ) : (
                     <div class="space-y-2">
                       <FoodSearch
-                        onSelect={(food) => setSelectedFood(food)}
+                        onSelect={(food) => { setSelectedFood(food); setAmountUnit("servings"); setServings("1"); }}
                         placeholder="Search your foods or USDA database..."
                       />
                       {barcodeLoading ? (
@@ -570,24 +592,42 @@ export default function DailyLogManager({ date, initialSummary, goals }: DailyLo
                   )}
                 </div>
 
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-3 gap-4">
                   <div>
-                    <label class="block text-sm font-medium text-gray-700">
-                      Servings
-                      {selectedFood && (
-                        <span class="font-normal text-gray-400">
-                          {" "}({selectedFood.servingSizeValue}{selectedFood.servingSizeUnit} each)
-                        </span>
-                      )}
-                    </label>
+                    <label class="block text-sm font-medium text-gray-700">Amount</label>
                     <input
                       type="number"
-                      step="0.25"
-                      min="0.25"
+                      step={amountUnit === "servings" ? "0.25" : "any"}
+                      min={amountUnit === "servings" ? "0.25" : "0.01"}
                       value={servings}
                       onInput={(e) => setServings((e.target as HTMLInputElement).value)}
                       class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                     />
+                    {amountUnit !== "servings" && selectedFood && (
+                      <p class="text-xs text-gray-500 mt-1">
+                        = {calculateServings().toFixed(2)} servings
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700">Unit</label>
+                    <select
+                      value={amountUnit}
+                      onChange={(e) => handleUnitChange((e.target as HTMLSelectElement).value as "servings" | "g" | "ml")}
+                      class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                    >
+                      <option value="servings">servings</option>
+                      {selectedFood && selectedFood.servingSizeValue > 0 && selectedFood.servingSizeUnit !== "serving" && (
+                        <option value={selectedFood.servingSizeUnit}>
+                          {selectedFood.servingSizeUnit === "g" ? "grams (g)" : "milliliters (ml)"}
+                        </option>
+                      )}
+                    </select>
+                    {selectedFood && (
+                      <p class="text-xs text-gray-400 mt-1">
+                        1 serving = {selectedFood.servingSizeValue}{selectedFood.servingSizeUnit}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label class="block text-sm font-medium text-gray-700">Meal</label>
