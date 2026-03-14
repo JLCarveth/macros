@@ -1,24 +1,11 @@
 import { Handlers } from "$fresh/server.ts";
-import { getCookie, verifyAccessToken } from "../../utils/auth.ts";
+import { getAuthPayload } from "../../utils/auth.ts";
 import { getCalorieTrend, getLoggingStreak } from "../../utils/db.ts";
 
 export const handler: Handlers = {
   async GET(req) {
-    const accessToken = getCookie(req, "access_token");
-    if (!accessToken) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const payload = await verifyAccessToken(accessToken);
-    if (!payload) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
+    const auth = await getAuthPayload(req);
+    if (auth instanceof Response) return auth;
 
     try {
       const url = new URL(req.url);
@@ -44,8 +31,8 @@ export const handler: Handlers = {
         .split("T")[0];
 
       const [calorieTrend, streak] = await Promise.all([
-        getCalorieTrend(payload.userId, startDate, endDate),
-        getLoggingStreak(payload.userId),
+        getCalorieTrend(auth.userId, startDate, endDate),
+        getLoggingStreak(auth.userId),
       ]);
 
       return new Response(

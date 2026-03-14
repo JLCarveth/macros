@@ -1,25 +1,12 @@
 import { Handlers } from "$fresh/server.ts";
-import { getCookie, verifyAccessToken } from "../../../utils/auth.ts";
+import { getAuthPayload } from "../../../utils/auth.ts";
 import { searchFoods, countFoods, getUserFoods, searchCommunityFoods, countCommunityFoods } from "../../../utils/db.ts";
 
 export const handler: Handlers = {
   // GET /api/foods/search?q=chicken&source=all&limit=20
   async GET(req) {
-    const accessToken = getCookie(req, "access_token");
-    if (!accessToken) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const payload = await verifyAccessToken(accessToken);
-    if (!payload) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
+    const auth = await getAuthPayload(req);
+    if (auth instanceof Response) return auth;
 
     try {
       const url = new URL(req.url);
@@ -50,25 +37,25 @@ export const handler: Handlers = {
           results = [];
         } else {
           // Return recent user foods with isSystem: false
-          const userFoods = await getUserFoods(payload.userId);
+          const userFoods = await getUserFoods(auth.userId);
           results = userFoods.slice(0, limit).map((f) => ({ ...f, isSystem: false }));
         }
       } else if (source === "all") {
         // For "all", search user+system foods and also community foods
         const [mainResults, communityResults] = await Promise.all([
-          searchFoods(payload.userId, q, "all", limit),
+          searchFoods(auth.userId, q, "all", limit),
           searchCommunityFoods(q, limit),
         ]);
         const communityMapped = communityResults.map((f) => ({ ...f, isSystem: false, isCommunity: true }));
         results = [...mainResults, ...communityMapped].slice(0, limit);
       } else {
-        results = await searchFoods(payload.userId, q, source, limit);
+        results = await searchFoods(auth.userId, q, source, limit);
       }
 
       // Get counts for tab badges
       const [userCount, systemCount, communityCount] = await Promise.all([
-        countFoods(payload.userId, "user"),
-        countFoods(payload.userId, "system"),
+        countFoods(auth.userId, "user"),
+        countFoods(auth.userId, "system"),
         countCommunityFoods(),
       ]);
 

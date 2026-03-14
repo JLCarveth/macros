@@ -1,5 +1,5 @@
 import { Handlers } from "$fresh/server.ts";
-import { getCookie, verifyAccessToken } from "../../../utils/auth.ts";
+import { getAuthPayload } from "../../../utils/auth.ts";
 import { createFoodLogEntry, createNutritionRecord } from "../../../utils/db.ts";
 import type { CreateFoodLogInput, CreateNutritionRecordInput } from "@nutrition-llama/shared";
 
@@ -11,21 +11,8 @@ function calculateCaloriesFromMacros(protein: number, carbs: number, fat: number
 export const handler: Handlers = {
   // POST /api/log - Create a new food log entry
   async POST(req) {
-    const accessToken = getCookie(req, "access_token");
-    if (!accessToken) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const payload = await verifyAccessToken(accessToken);
-    if (!payload) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
+    const auth = await getAuthPayload(req);
+    if (auth instanceof Response) return auth;
 
     try {
       const body = await req.json();
@@ -87,7 +74,7 @@ export const handler: Handlers = {
           source: "manual",
         };
 
-        const nutritionRecord = await createNutritionRecord(payload.userId, nutritionInput);
+        const nutritionRecord = await createNutritionRecord(auth.userId, nutritionInput);
         nutritionRecordId = nutritionRecord.id;
       }
 
@@ -98,7 +85,7 @@ export const handler: Handlers = {
         mealType: body.mealType,
       };
 
-      const entry = await createFoodLogEntry(payload.userId, input);
+      const entry = await createFoodLogEntry(auth.userId, input);
 
       return new Response(JSON.stringify(entry), {
         status: 201,

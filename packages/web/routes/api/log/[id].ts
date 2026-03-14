@@ -1,29 +1,16 @@
 import { Handlers } from "$fresh/server.ts";
-import { getCookie, verifyAccessToken } from "../../../utils/auth.ts";
+import { getAuthPayload } from "../../../utils/auth.ts";
 import { getFoodLogEntry, updateFoodLogEntry, deleteFoodLogEntry } from "../../../utils/db.ts";
 
 export const handler: Handlers = {
   // GET /api/log/:id - Get a single log entry
   async GET(req, ctx) {
-    const accessToken = getCookie(req, "access_token");
-    if (!accessToken) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const payload = await verifyAccessToken(accessToken);
-    if (!payload) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
+    const auth = await getAuthPayload(req);
+    if (auth instanceof Response) return auth;
 
     try {
       const { id } = ctx.params;
-      const entry = await getFoodLogEntry(id, payload.userId);
+      const entry = await getFoodLogEntry(id, auth.userId);
 
       if (!entry) {
         return new Response(
@@ -47,21 +34,8 @@ export const handler: Handlers = {
 
   // PUT /api/log/:id - Update a log entry
   async PUT(req, ctx) {
-    const accessToken = getCookie(req, "access_token");
-    if (!accessToken) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const payload = await verifyAccessToken(accessToken);
-    if (!payload) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
+    const auth = await getAuthPayload(req);
+    if (auth instanceof Response) return auth;
 
     try {
       const { id } = ctx.params;
@@ -85,7 +59,7 @@ export const handler: Handlers = {
 
       const entry = await updateFoodLogEntry(
         id,
-        payload.userId,
+        auth.userId,
         body.servings,
         body.mealType
       );
@@ -112,25 +86,12 @@ export const handler: Handlers = {
 
   // DELETE /api/log/:id - Delete a log entry
   async DELETE(req, ctx) {
-    const accessToken = getCookie(req, "access_token");
-    if (!accessToken) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const payload = await verifyAccessToken(accessToken);
-    if (!payload) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
+    const auth = await getAuthPayload(req);
+    if (auth instanceof Response) return auth;
 
     try {
       const { id } = ctx.params;
-      await deleteFoodLogEntry(id, payload.userId);
+      await deleteFoodLogEntry(id, auth.userId);
 
       return new Response(null, { status: 204 });
     } catch (error) {

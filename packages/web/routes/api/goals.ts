@@ -1,27 +1,14 @@
 import { Handlers } from "$fresh/server.ts";
-import { getCookie, verifyAccessToken } from "../../utils/auth.ts";
+import { getAuthPayload } from "../../utils/auth.ts";
 import { getUserGoals, upsertUserGoals } from "../../utils/db.ts";
 
 export const handler: Handlers = {
   async GET(req) {
-    const accessToken = getCookie(req, "access_token");
-    if (!accessToken) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const payload = await verifyAccessToken(accessToken);
-    if (!payload) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
+    const auth = await getAuthPayload(req);
+    if (auth instanceof Response) return auth;
 
     try {
-      const goals = await getUserGoals(payload.userId);
+      const goals = await getUserGoals(auth.userId);
       return new Response(JSON.stringify(goals), {
         status: 200,
         headers: { "Content-Type": "application/json" },
@@ -36,21 +23,8 @@ export const handler: Handlers = {
   },
 
   async PUT(req) {
-    const accessToken = getCookie(req, "access_token");
-    if (!accessToken) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const payload = await verifyAccessToken(accessToken);
-    if (!payload) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
+    const auth = await getAuthPayload(req);
+    if (auth instanceof Response) return auth;
 
     try {
       const body = await req.json();
@@ -75,7 +49,7 @@ export const handler: Handlers = {
         );
       }
 
-      const goals = await upsertUserGoals(payload.userId, {
+      const goals = await upsertUserGoals(auth.userId, {
         calories: Math.round(calories),
         proteinG: Math.round(proteinG),
         carbsG: Math.round(carbsG),

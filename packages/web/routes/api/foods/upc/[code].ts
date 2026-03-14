@@ -1,32 +1,19 @@
 import { Handlers } from "$fresh/server.ts";
-import { getCookie, verifyAccessToken } from "../../../../utils/auth.ts";
+import { getAuthPayload } from "../../../../utils/auth.ts";
 import { getFoodByUpc, getCommunityFoodByUpc } from "../../../../utils/db.ts";
 import { lookupOffProduct } from "../../../../utils/openfoodfacts.ts";
 
 export const handler: Handlers = {
   // GET /api/foods/upc/:code - Find food by UPC code (cascade: user -> community -> OFF)
   async GET(req, ctx) {
-    const accessToken = getCookie(req, "access_token");
-    if (!accessToken) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const payload = await verifyAccessToken(accessToken);
-    if (!payload) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
+    const auth = await getAuthPayload(req);
+    if (auth instanceof Response) return auth;
 
     try {
       const { code } = ctx.params;
 
       // 1. Check user's own foods first
-      const userFood = await getFoodByUpc(code, payload.userId);
+      const userFood = await getFoodByUpc(code, auth.userId);
       if (userFood) {
         return new Response(
           JSON.stringify({ ...userFood, lookupSource: "user" }),

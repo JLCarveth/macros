@@ -1,24 +1,10 @@
 import { Handlers } from "$fresh/server.ts";
-import { requireAuth, getCookie, verifyAccessToken } from "../../utils/auth.ts";
+import { getAuthPayload } from "../../utils/auth.ts";
 
 export const handler: Handlers = {
   async POST(req) {
-    // Verify authentication
-    const accessToken = getCookie(req, "access_token");
-    if (!accessToken) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const payload = await verifyAccessToken(accessToken);
-    if (!payload) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
+    const auth = await getAuthPayload(req);
+    if (auth instanceof Response) return auth;
 
     try {
       // Get the API URL from environment

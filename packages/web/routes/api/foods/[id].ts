@@ -1,29 +1,16 @@
 import { Handlers } from "$fresh/server.ts";
-import { getCookie, verifyAccessToken } from "../../../utils/auth.ts";
+import { getAuthPayload } from "../../../utils/auth.ts";
 import { getFoodById, getFoodByIdAllowSystem, updateNutritionRecord, deleteNutritionRecord } from "../../../utils/db.ts";
 
 export const handler: Handlers = {
   // GET /api/foods/:id - Get a single food
   async GET(req, ctx) {
-    const accessToken = getCookie(req, "access_token");
-    if (!accessToken) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const payload = await verifyAccessToken(accessToken);
-    if (!payload) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
+    const auth = await getAuthPayload(req);
+    if (auth instanceof Response) return auth;
 
     try {
       const { id } = ctx.params;
-      const food = await getFoodByIdAllowSystem(id, payload.userId);
+      const food = await getFoodByIdAllowSystem(id, auth.userId);
 
       if (!food) {
         return new Response(
@@ -47,27 +34,14 @@ export const handler: Handlers = {
 
   // PUT /api/foods/:id - Update a food
   async PUT(req, ctx) {
-    const accessToken = getCookie(req, "access_token");
-    if (!accessToken) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const payload = await verifyAccessToken(accessToken);
-    if (!payload) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
+    const auth = await getAuthPayload(req);
+    if (auth instanceof Response) return auth;
 
     try {
       const { id } = ctx.params;
       const body = await req.json();
 
-      const food = await updateNutritionRecord(id, payload.userId, body);
+      const food = await updateNutritionRecord(id, auth.userId, body);
 
       if (!food) {
         return new Response(
@@ -91,25 +65,12 @@ export const handler: Handlers = {
 
   // DELETE /api/foods/:id - Delete a food
   async DELETE(req, ctx) {
-    const accessToken = getCookie(req, "access_token");
-    if (!accessToken) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const payload = await verifyAccessToken(accessToken);
-    if (!payload) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
+    const auth = await getAuthPayload(req);
+    if (auth instanceof Response) return auth;
 
     try {
       const { id } = ctx.params;
-      await deleteNutritionRecord(id, payload.userId);
+      await deleteNutritionRecord(id, auth.userId);
 
       return new Response(null, { status: 204 });
     } catch (error) {

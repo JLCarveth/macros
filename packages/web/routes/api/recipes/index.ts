@@ -1,28 +1,15 @@
 import { Handlers } from "$fresh/server.ts";
-import { getCookie, verifyAccessToken } from "../../../utils/auth.ts";
+import { getAuthPayload } from "../../../utils/auth.ts";
 import { createRecipe, getUserRecipes } from "../../../utils/db.ts";
 import type { CreateRecipeInput } from "@nutrition-llama/shared";
 
 export const handler: Handlers = {
   async GET(req) {
-    const accessToken = getCookie(req, "access_token");
-    if (!accessToken) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-
-    const payload = await verifyAccessToken(accessToken);
-    if (!payload) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
+    const auth = await getAuthPayload(req);
+    if (auth instanceof Response) return auth;
 
     try {
-      const recipes = await getUserRecipes(payload.userId);
+      const recipes = await getUserRecipes(auth.userId);
       return new Response(JSON.stringify(recipes), {
         status: 200,
         headers: { "Content-Type": "application/json" },
@@ -37,21 +24,8 @@ export const handler: Handlers = {
   },
 
   async POST(req) {
-    const accessToken = getCookie(req, "access_token");
-    if (!accessToken) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-
-    const payload = await verifyAccessToken(accessToken);
-    if (!payload) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
+    const auth = await getAuthPayload(req);
+    if (auth instanceof Response) return auth;
 
     try {
       const body = await req.json();
@@ -99,7 +73,7 @@ export const handler: Handlers = {
         ingredients: body.ingredients,
       };
 
-      const recipe = await createRecipe(payload.userId, input);
+      const recipe = await createRecipe(auth.userId, input);
       return new Response(JSON.stringify(recipe), {
         status: 201,
         headers: { "Content-Type": "application/json" },

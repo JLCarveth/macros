@@ -1,25 +1,12 @@
 import { Handlers } from "$fresh/server.ts";
-import { getCookie, verifyAccessToken } from "../../../utils/auth.ts";
+import { getAuthPayload } from "../../../utils/auth.ts";
 import { getDailySummary } from "../../../utils/db.ts";
 
 export const handler: Handlers = {
   // GET /api/log/daily?date=YYYY-MM-DD - Get daily summary
   async GET(req) {
-    const accessToken = getCookie(req, "access_token");
-    if (!accessToken) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const payload = await verifyAccessToken(accessToken);
-    if (!payload) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
+    const auth = await getAuthPayload(req);
+    if (auth instanceof Response) return auth;
 
     try {
       const url = new URL(req.url);
@@ -40,7 +27,7 @@ export const handler: Handlers = {
         );
       }
 
-      const summary = await getDailySummary(payload.userId, date);
+      const summary = await getDailySummary(auth.userId, date);
 
       return new Response(JSON.stringify(summary), {
         status: 200,

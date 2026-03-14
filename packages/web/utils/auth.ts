@@ -163,6 +163,21 @@ export async function verifyAccessToken(token: string): Promise<JWTPayload | nul
   }
 }
 
+const UNAUTHORIZED = JSON.stringify({ error: "Unauthorized" });
+const JSON_HEADERS = { "Content-Type": "application/json" };
+
+export async function getAuthPayload(req: Request): Promise<JWTPayload | Response> {
+  const accessToken = getCookie(req, "access_token");
+  if (!accessToken) {
+    return new Response(UNAUTHORIZED, { status: 401, headers: JSON_HEADERS });
+  }
+  const payload = await verifyAccessToken(accessToken);
+  if (!payload) {
+    return new Response(UNAUTHORIZED, { status: 401, headers: JSON_HEADERS });
+  }
+  return payload;
+}
+
 export async function verifyRefreshTokenAndGetUser(
   token: string
 ): Promise<User | null> {

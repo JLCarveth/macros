@@ -4,7 +4,7 @@ import { requireAuth } from "../../utils/auth.ts";
 import type { User, NutritionRecordWithSource } from "@nutrition-llama/shared";
 import { getFoodByIdAllowSystem } from "../../utils/db.ts";
 import FoodLogForm from "../../islands/FoodLogForm.tsx";
-import DeleteFoodButton from "../../islands/DeleteFoodButton.tsx";
+import DeleteButton from "../../islands/DeleteButton.tsx";
 
 interface FoodDetailData {
   user: User;
@@ -69,7 +69,7 @@ export default function FoodDetailPage({ data }: PageProps<FoodDetailData>) {
               >
                 Edit Food
               </a>
-              <DeleteFoodButton foodId={String(food.id)} foodName={food.name} />
+              <DeleteButton itemId={String(food.id)} itemName={food.name} apiPath="/api/foods" redirectTo="/foods" label="Food" />
             </div>
           </div>
         )}

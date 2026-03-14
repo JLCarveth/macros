@@ -1,25 +1,12 @@
 import { Handlers } from "$fresh/server.ts";
-import { getCookie, verifyAccessToken } from "../../../utils/auth.ts";
+import { getAuthPayload } from "../../../utils/auth.ts";
 import { contributeCommunityFood } from "../../../utils/db.ts";
 
 export const handler: Handlers = {
   // POST /api/foods/community - Contribute a food to the community pool
   async POST(req) {
-    const accessToken = getCookie(req, "access_token");
-    if (!accessToken) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const payload = await verifyAccessToken(accessToken);
-    if (!payload) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
+    const auth = await getAuthPayload(req);
+    if (auth instanceof Response) return auth;
 
     try {
       const body = await req.json();
@@ -49,7 +36,7 @@ export const handler: Handlers = {
         offProductUrl: body.offProductUrl,
       };
 
-      const { created, food } = await contributeCommunityFood(payload.userId, input);
+      const { created, food } = await contributeCommunityFood(auth.userId, input);
 
       return new Response(
         JSON.stringify({ created, food }),

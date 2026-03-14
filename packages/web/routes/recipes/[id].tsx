@@ -4,7 +4,7 @@ import { requireAuth } from "../../utils/auth.ts";
 import type { User, RecipeWithIngredients } from "@nutrition-llama/shared";
 import { getRecipeById } from "../../utils/db.ts";
 import FoodLogForm from "../../islands/FoodLogForm.tsx";
-import DeleteRecipeButton from "../../islands/DeleteRecipeButton.tsx";
+import DeleteButton from "../../islands/DeleteButton.tsx";
 
 interface RecipeDetailData {
   user: User;
@@ -67,7 +67,7 @@ export default function RecipeDetailPage({ data }: PageProps<RecipeDetailData>) 
             >
               Edit Recipe
             </a>
-            <DeleteRecipeButton recipeId={recipe.id} recipeName={recipe.name} />
+            <DeleteButton itemId={recipe.id} itemName={recipe.name} apiPath="/api/recipes" redirectTo="/recipes" label="Recipe" />
           </div>
         </div>
 

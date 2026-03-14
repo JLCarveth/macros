@@ -1,24 +1,11 @@
 import { Handlers } from "$fresh/server.ts";
-import { getCookie, verifyAccessToken } from "../../utils/auth.ts";
+import { getAuthPayload } from "../../utils/auth.ts";
 import { createWeightLogEntry, getWeightLog, deleteWeightLogEntry } from "../../utils/db.ts";
 
 export const handler: Handlers = {
   async GET(req) {
-    const accessToken = getCookie(req, "access_token");
-    if (!accessToken) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const payload = await verifyAccessToken(accessToken);
-    if (!payload) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
+    const auth = await getAuthPayload(req);
+    if (auth instanceof Response) return auth;
 
     try {
       const url = new URL(req.url);
@@ -32,7 +19,7 @@ export const handler: Handlers = {
         );
       }
 
-      const entries = await getWeightLog(payload.userId, start, end);
+      const entries = await getWeightLog(auth.userId, start, end);
       return new Response(JSON.stringify(entries), {
         status: 200,
         headers: { "Content-Type": "application/json" },
@@ -47,21 +34,8 @@ export const handler: Handlers = {
   },
 
   async POST(req) {
-    const accessToken = getCookie(req, "access_token");
-    if (!accessToken) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const payload = await verifyAccessToken(accessToken);
-    if (!payload) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
+    const auth = await getAuthPayload(req);
+    if (auth instanceof Response) return auth;
 
     try {
       const body = await req.json();
@@ -83,7 +57,7 @@ export const handler: Handlers = {
         }
       }
 
-      const entry = await createWeightLogEntry(payload.userId, {
+      const entry = await createWeightLogEntry(auth.userId, {
         weightKg,
         bodyFatPct: bodyFatPct ?? undefined,
         loggedDate,
@@ -103,21 +77,8 @@ export const handler: Handlers = {
   },
 
   async DELETE(req) {
-    const accessToken = getCookie(req, "access_token");
-    if (!accessToken) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const payload = await verifyAccessToken(accessToken);
-    if (!payload) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
+    const auth = await getAuthPayload(req);
+    if (auth instanceof Response) return auth;
 
     try {
       const url = new URL(req.url);
@@ -130,7 +91,7 @@ export const handler: Handlers = {
         );
       }
 
-      await deleteWeightLogEntry(id, payload.userId);
+      await deleteWeightLogEntry(id, auth.userId);
       return new Response(JSON.stringify({ success: true }), {
         status: 200,
         headers: { "Content-Type": "application/json" },

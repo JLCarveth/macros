@@ -1,29 +1,16 @@
 import { Handlers } from "$fresh/server.ts";
-import { getCookie, verifyAccessToken } from "../../../utils/auth.ts";
+import { getAuthPayload } from "../../../utils/auth.ts";
 import { getUserFoods, createNutritionRecord } from "../../../utils/db.ts";
 import type { CreateNutritionRecordInput } from "@nutrition-llama/shared";
 
 export const handler: Handlers = {
   // GET /api/foods - List all user's foods
   async GET(req) {
-    const accessToken = getCookie(req, "access_token");
-    if (!accessToken) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const payload = await verifyAccessToken(accessToken);
-    if (!payload) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
+    const auth = await getAuthPayload(req);
+    if (auth instanceof Response) return auth;
 
     try {
-      const foods = await getUserFoods(payload.userId);
+      const foods = await getUserFoods(auth.userId);
       return new Response(JSON.stringify(foods), {
         status: 200,
         headers: { "Content-Type": "application/json" },
@@ -39,21 +26,8 @@ export const handler: Handlers = {
 
   // POST /api/foods - Create a new food
   async POST(req) {
-    const accessToken = getCookie(req, "access_token");
-    if (!accessToken) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const payload = await verifyAccessToken(accessToken);
-    if (!payload) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
+    const auth = await getAuthPayload(req);
+    if (auth instanceof Response) return auth;
 
     try {
       const body = await req.json();
@@ -90,7 +64,7 @@ export const handler: Handlers = {
         source: body.source || "manual",
       };
 
-      const food = await createNutritionRecord(payload.userId, input);
+      const food = await createNutritionRecord(auth.userId, input);
 
       return new Response(JSON.stringify(food), {
         status: 201,
